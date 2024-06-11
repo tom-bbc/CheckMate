@@ -1,0 +1,3 @@
+[submodule "claimskg-extractor"]
+	path = claimskg-extractor
+	url = https://github.com/claimskg/claimskg-extractor.git
