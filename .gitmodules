@@ -1,3 +1,6 @@
 [submodule "claimskg-extractor"]
 	path = claimskg-extractor
 	url = https://github.com/claimskg/claimskg-extractor.git
+[submodule "detecting-scientific-claim"]
+	path = detecting-scientific-claim
+	url = https://github.com/titipata/detecting-scientific-claim.git
