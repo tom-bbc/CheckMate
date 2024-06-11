@@ -1,15 +1,13 @@
 import requests
-import json
-
-
-class Transcription():
-    def __init__(self):
-        pass
 
 
 class ClaimExtraction():
     def __init__(self):
         pass
+
+    def run(self):
+        claim = input("Enter your claim to be fact-checked: ")
+        return claim
 
 
 class GoogleFactCheck():
@@ -21,8 +19,7 @@ class GoogleFactCheck():
             'query': ""
         }
 
-    def run(self):
-        claim = input("Enter your claim to be fact-checked: ")
+    def run(self, claim):
         self.request_params['query'] = claim
 
         response = requests.get(self.request_url, params=self.request_params)
@@ -35,15 +32,27 @@ class GoogleFactCheck():
                 print("No response from Google Fact Check")
                 exit(0)
 
-            for claim in response_json["claims"]:
-                print(json.dumps(claim, indent=4), end='\n\n')
+            print("\nGoogle Fact Check results:", end='\n\n')
+            for idx, result in enumerate(response_json["claims"]):
+                print(f" * Result #{idx + 1}:")
+                print(f"     * Claim:")
+                if 'text' in result.keys(): print(f"         * Title: {result['text']}")
+                if 'claimDate' in result.keys(): print(f"         * Date: {result['claimDate']}")
+                if 'claimant' in result.keys(): print(f"         * Source: {result['claimant']}")
 
-
-class CheckMate():
-    def __init__(self):
-        pass
+                for review in result['claimReview']:
+                    print(f"     * Review info:")
+                    if 'title' in review.keys(): print(f"         * Title: {review['title']}")
+                    if 'reviewDate' in review.keys(): print(f"         * Date: {review['reviewDate']}")
+                    if 'publisher' in review.keys(): print(f"         * Source: {review['publisher']['name']} ({review['publisher']['site']})")
+                    if 'textualRating' in review.keys(): print(f"         * Conclusion: {review['textualRating']}")
+                    if 'url' in review.keys(): print(f"         * Full review: {review['url']}")
+                    print()
 
 
 if __name__ == '__main__':
-    check_mate = GoogleFactCheck()
-    check_mate.run()
+    claim_extraction = ClaimExtraction()
+    fact_checking = GoogleFactCheck()
+
+    claim = claim_extraction.run()
+    fact_checking.run(claim)
