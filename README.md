@@ -1,6 +1,18 @@
 # CheckMate
 JournalismAI 2024 project.
 
+## CheckMate.py
+
+Store API keys in file `credentials.json` with the following structure:
+
+```
+{
+    "claimbuster_api_key": "...",
+    "google_fact_check_api_key": "..."
+}
+```
+
+
 ## ClaimsKG Extractor
 
 ### Install
