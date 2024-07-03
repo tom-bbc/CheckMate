@@ -46,18 +46,23 @@ class ClaimExtraction():
         # context = "In the UK, "
 
         if type(claims[0]) == dict and 'Claim' in claims[0].keys() and 'Speaker' in claims[0].keys():
-            claim_formatting = lambda claim: context + claim['Claim'].replace("I ", f"{claim['Speaker']} ").replace("I'm", f"{claim['Speaker']} is")
-            claim_formatting = lambda claim: context + claim['Claim']
-            claims = map(claim_formatting, claims)
+            claim_formatting = lambda claim: claim['Claim'].replace("I ", f"{claim['Speaker']} ").replace("I'm", f"{claim['Speaker']} is")
+            claims = [
+                {'claim': claim_formatting(claim), 'tags': [claim['Speaker']]}
+                for claim in claims
+            ]
+
         elif type(claims[0]) == str:
-            claim_formatting = lambda claim: context + claim
-            claims = map(claim_formatting, claims)
+            claims = [
+                {'claim': claim, 'tags': []}
+                for claim in claims
+            ]
 
         return claims
 
 
 class GoogleFactCheck():
-    def __init__(self, google_fact_check_api_key):
+    def __init__(self, google_fact_check_api_key:str):
         self.request_url = "https://factchecktools.googleapis.com/v1alpha1/claims:search"
         self.request_params = {
             'key': google_fact_check_api_key,
@@ -65,50 +70,69 @@ class GoogleFactCheck():
             'query': ""
         }
 
-    def run(self, claims: list[str]):
+    def fact_check_claim(self, claim:str):
+        self.request_params['query'] = claim
+
+        response = requests.get(self.request_url, params=self.request_params)
+        response_code = response.status_code
+
+        if response_code == 200:
+            response = response.json()
+
+        return response_code, response
+
+    def fact_check_tags(self):
+        pass
+
+    def write_out_fact_check(self, claim_request:str, fact_check_response:dict, outfile:str="fact_checking_output.txt"):
+        with open(outfile, 'a') as f:
+            f.write("\n--------------------------------------------------------------------------------\n\n")
+            f.write(f"Input claim: {claim_request}\n")
+            f.write("\nGoogle Fact Check results:\n")
+
+            for idx, result in enumerate(fact_check_response['claims']):
+                f.write(f"\n * Result #{idx + 1}: \n")
+                f.write(f"     * Claim: \n")
+                if 'text' in result.keys(): f.write(f"         * Title: {result['text']} \n")
+                if 'claimDate' in result.keys(): f.write(f"         * Date: {datetime.strptime(result['claimDate'], '%Y-%m-%dT%H:%M:%SZ').strftime('%d/%m/%Y')} \n")
+                if 'claimant' in result.keys(): f.write(f"         * Source: {result['claimant']} \n")
+
+                for review in result['claimReview']:
+                    f.write(f"     * Review info: \n")
+                    if 'title' in review.keys(): f.write(f"         * Title: {review['title']} \n")
+                    if 'reviewDate' in review.keys(): f.write(f"         * Date: {datetime.strptime(review['reviewDate'], '%Y-%m-%dT%H:%M:%SZ').strftime('%d/%m/%Y')} \n")
+                    if 'publisher' in review.keys(): f.write(f"         * Source: {review['publisher']['name']} ({review['publisher']['site']}) \n")
+                    if 'textualRating' in review.keys(): f.write(f"         * Conclusion: {review['textualRating']} \n")
+                    if 'url' in review.keys(): f.write(f"         * Full review: {review['url']} \n")
+
+        return True
+
+    def run(self, claims: list[dict]):
         with open("fact_checking_output.txt", 'w') as f:
             f.write("")
 
-        for claim in claims:
-            with open("fact_checking_output.txt", 'a') as f:
-                f.write("\n--------------------------------------------------------------------------------\n\n")
-                f.write(f"Input claim: {claim}\n")
+        for claim_data in claims:
+            claim = claim_data['claim']
 
-            self.request_params['query'] = claim
+            # Call Google Fact Check API to conduct fact checking
+            response_code, response = self.fact_check_claim(claim)
 
-            response = requests.get(self.request_url, params=self.request_params)
-            response_code = response.status_code
-
-            if response_code == 200:
-                response_json = response.json()
-
-                if response_json == {}:
-                    with open("fact_checking_output.txt", 'a') as f:
-                        f.write("Error: No results found by Google Fact Check\n")
-                    continue
-
-                with open("fact_checking_output.txt", 'a') as f:
-                    f.write("\nGoogle Fact Check results:\n")
-
-                    for idx, result in enumerate(response_json["claims"]):
-                        f.write(f"\n * Result #{idx + 1}: \n")
-                        f.write(f"     * Claim: \n")
-                        if 'text' in result.keys(): f.write(f"         * Title: {result['text']} \n")
-                        if 'claimDate' in result.keys(): f.write(f"         * Date: {datetime.strptime(result['claimDate'], '%Y-%m-%dT%H:%M:%SZ').strftime('%d/%m/%Y')} \n")
-                        if 'claimant' in result.keys(): f.write(f"         * Source: {result['claimant']} \n")
-
-                        for review in result['claimReview']:
-                            f.write(f"     * Review info: \n")
-                            if 'title' in review.keys(): f.write(f"         * Title: {review['title']} \n")
-                            if 'reviewDate' in review.keys(): f.write(f"         * Date: {datetime.strptime(review['reviewDate'], '%Y-%m-%dT%H:%M:%SZ').strftime('%d/%m/%Y')} \n")
-                            if 'publisher' in review.keys(): f.write(f"         * Source: {review['publisher']['name']} ({review['publisher']['site']}) \n")
-                            if 'textualRating' in review.keys(): f.write(f"         * Conclusion: {review['textualRating']} \n")
-                            if 'url' in review.keys(): f.write(f"         * Full review: {review['url']} \n")
-            else:
+            # Error checking
+            if response_code != 200:
                 print(f"Error: {response_code} response from Google Fact Check \n")
+                continue
 
-        with open("fact_checking_output.txt", 'a') as f:
-            f.write("\n--------------------------------------------------------------------------------\n\n")
+            elif response == {}:
+                with open("fact_checking_output.txt", 'a') as f:
+                    f.write("\n--------------------------------------------------------------------------------\n\n")
+                    f.write(f"Input claim: {claim}\n")
+                    f.write("Error: No results found by Google Fact Check\n")
+                continue
+
+            # Output located fact checks to file
+            self.write_out_fact_check(claim, response)
+
+        return True
 
 
 if __name__ == '__main__':

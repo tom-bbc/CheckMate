@@ -1,0 +1,14 @@
+{
+  "name": "checkmate",
+  "description": "JournalismAI 2024 project.",
+  "version": "1.0.0",
+  "main": "CheckMate.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Tom Potter",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  }
+}
