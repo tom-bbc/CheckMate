@@ -1,2 +1,6 @@
 fact_checking_output.txt
 credentials.json
+.env
+test-data
+cache_dir
+.DS_Store

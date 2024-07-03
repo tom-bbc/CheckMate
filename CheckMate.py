@@ -13,19 +13,45 @@ class ClaimExtraction():
         """
         self.claimbuster_api = "https://idir.uta.edu/claimbuster/api/v2/score/text/sentences/"
         self.claimbuster_headers = {"x-api-key": claimbuster_api_key}
+        self.checkworthiness_threshold = 0.5
 
     def user_input(self):
         claim = input("Enter your claim to be fact-checked: ")
         return claim
 
     def extract_claims(self, text: str):
-        api_endpoint = self.claimbuster_api + text
-        api_response = requests.get(url=api_endpoint, headers=self.claimbuster_headers)
+        for terminal in ['?', '!', ';', ':']:
+            text = text.replace(f'{terminal} ', '. ')
 
-        results = api_response.json()["results"]
-        results = filter(lambda r: r['score'] > 0.5, results)
-        # results = sorted(results, key=lambda r: r['score'], reverse=True)
-        claims = map(lambda r: r['text'], results)
+        sentences = text.split('. ')
+        sentences = [sentences[idx:idx + 3] for idx in range(0, len(sentences), 3)]
+        claims = []
+
+        for sentence_block in sentences:
+            sentence = ". ".join([s.strip() for s in sentence_block])
+            api_endpoint = self.claimbuster_api + sentence
+
+            api_response = requests.get(url=api_endpoint, headers=self.claimbuster_headers)
+            api_response = api_response.json()
+            results = api_response["results"]
+
+            for result in results:
+                if result["score"] > self.checkworthiness_threshold:
+                    claims.append(result["text"])
+
+        return claims
+
+    @staticmethod
+    def format_claims(claims, context=''):
+        # context = "In the UK, "
+
+        if type(claims[0]) == dict and 'Claim' in claims[0].keys() and 'Speaker' in claims[0].keys():
+            claim_formatting = lambda claim: context + claim['Claim'].replace("I ", f"{claim['Speaker']} ").replace("I'm", f"{claim['Speaker']} is")
+            claim_formatting = lambda claim: context + claim['Claim']
+            claims = map(claim_formatting, claims)
+        elif type(claims[0]) == str:
+            claim_formatting = lambda claim: context + claim
+            claims = map(claim_formatting, claims)
 
         return claims
 
@@ -58,7 +84,7 @@ class GoogleFactCheck():
 
                 if response_json == {}:
                     with open("fact_checking_output.txt", 'a') as f:
-                        f.write("Error: no results found by Google Fact Check\n")
+                        f.write("Error: No results found by Google Fact Check\n")
                     continue
 
                 with open("fact_checking_output.txt", 'a') as f:
@@ -81,9 +107,6 @@ class GoogleFactCheck():
             else:
                 print(f"Error: {response_code} response from Google Fact Check \n")
 
-            with open("fact_checking_output.txt", 'a') as f:
-                f.write("\n--------------------------------------------------------------------------------\n")
-
         with open("fact_checking_output.txt", 'a') as f:
             f.write("\n--------------------------------------------------------------------------------\n\n")
 
@@ -97,8 +120,16 @@ if __name__ == '__main__':
     claim_extraction = ClaimExtraction(claimbuster_api_key)
     fact_checking = GoogleFactCheck(google_fact_check_api_key)
 
-    transcript = "Our southern border is a pipeline for vast quantities of illegal drugs, including meth, heroin, cocaine, and fentanyl. Every week, 300 of our citizens are killed by heroin alone, 90% of which floods across from our southern border. More Americans will die from drugs this year than were killed in the entire Vietnam war. In the last two years, ICE officers made 266,000 arrests of aliens with criminal records, including those charged or convicted of 100,000 assaults, 30,000 sex crimes, and 4,000 violent killings. Over the years, thousands of Americans have been brutally killed by those who illegally entered our country, and thousands more lives will be lost if we don't act right now. This is a humanitarian crisis, a crisis of the heart and a crisis of the soul."
+    transcript_file = 'test-data/trump_transcript.txt'
+    with open(transcript_file, 'r') as file:
+        transcript = file.read()
 
     claims = claim_extraction.extract_claims(transcript)
+
+    # claims_file = 'test-data/2010_debate_claims_gpt4.json'
+    # with open(claims_file, 'r') as file:
+    #     claims = json.load(file)
+
+    claims = claim_extraction.format_claims(claims)
 
     fact_checking.run(claims)

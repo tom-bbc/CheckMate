@@ -4,3 +4,6 @@
 [submodule "detecting-scientific-claim"]
 	path = detecting-scientific-claim
 	url = https://github.com/titipata/detecting-scientific-claim.git
+[submodule "combine-FEVER-NSMN"]
+	path = combine-FEVER-NSMN
+	url = https://github.com/easonnie/combine-FEVER-NSMN.git
