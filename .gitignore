@@ -5,3 +5,5 @@ test-data
 cache_dir
 .DS_Store
 package-lock.json
+node_modules
+detecting-scientific-claim
