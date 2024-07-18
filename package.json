@@ -9,6 +9,9 @@
   "author": "Tom Potter",
   "license": "ISC",
   "dependencies": {
-    "node-fetch": "^2.7.0"
+    "@aws-sdk/client-s3": "^3.614.0",
+    "@aws-sdk/client-ssm": "^3.614.0",
+    "node-fetch": "^2.7.0",
+    "openai": "^4.52.7"
   }
 }
