@@ -51,7 +51,7 @@ module.exports.claimDetection = async (transcript) => {
             json_content = json_content.split(json_end_char)[0];
         }
 
-        let detected_claims = JSON.parse(json_content);
+        const detected_claims = JSON.parse(json_content);
         return detected_claims;
 
     } catch (error) {
