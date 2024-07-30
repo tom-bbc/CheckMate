@@ -40,12 +40,21 @@ exports.claimDetection = async (transcript) => {
         console.log(response.choices[0]);
 
         // Need to update this to start from element '```json\n' in content list of strings and end on element '```'
-        const detected_claims = JSON.parse(response.choices[0].message.content)
+        const json_start_char = '```json\n';
+        const json_end_char = '```';
+        let json_content = response.choices[0].message.content;
+
+        if (json_content.includes(json_start_char) && json_content.includes(json_end_char)) {
+            json_content = json_content.split(json_start_char)[1];
+            json_content = json_content.split(json_end_char)[0];
+        }
+
+        let detected_claims = JSON.parse(json_content);
         return detected_claims;
 
     } catch (error) {
         console.error(error);
-        console.log("ERROR => OpenAI call failed");
+        console.log("ERROR: OpenAI call failed.");
 
         return false;
     }
