@@ -1,9 +1,11 @@
 const { OpenAI } = require("openai");
 const { getAuth } = require('./awsauth');
 
-exports.claimDetection = async (transcript) => {
+module.exports.claimDetection = async (transcript) => {
+    // Get OpenAI credentials
     const auth = await getAuth();
 
+    // Define prompt to send to GPT model
     const prompt = `
         I will provide you with a transcript. Extract the key factual claims from this transcript.
         Ensure to only include relevant and substantial claims that are verifiable and not opinion or sarcasm.
@@ -27,6 +29,7 @@ exports.claimDetection = async (transcript) => {
         ${transcript}
     `;
 
+    // Retrieve and format response from GPT model
     try {
         const openai = new OpenAI({ apiKey: auth.OPEN_API_KEY })
 
@@ -37,9 +40,8 @@ exports.claimDetection = async (transcript) => {
             ],
             model: "gpt-4o",
         });
-        console.log(response.choices[0]);
 
-        // Need to update this to start from element '```json\n' in content list of strings and end on element '```'
+        // If response includes text & json, start from element '```json\n' in response content and end on element '```'
         const json_start_char = '```json\n';
         const json_end_char = '```';
         let json_content = response.choices[0].message.content;
@@ -56,6 +58,6 @@ exports.claimDetection = async (transcript) => {
         console.error(error);
         console.log("ERROR: OpenAI call failed.");
 
-        return false;
+        return [];
     }
 }
