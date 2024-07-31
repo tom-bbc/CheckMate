@@ -56,6 +56,13 @@ def gatherContextFromGoogle(claim):
 
         return result
 
+def factCheckFromContext():
+    with open('credentials.json', 'r') as f:
+        credentials = json.load(f)
+        OPENAI_API_KEY = credentials['openai_api_key']
+
+    return
+
 
 if __name__ == '__main__':
     detected_claims = [

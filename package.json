@@ -12,8 +12,8 @@
     "@aws-sdk/client-s3": "^3.614.0",
     "@aws-sdk/client-ssm": "^3.614.0",
     "axios": "^1.7.2",
-    "cheerio": "^1.0.0-rc.12",
     "node-fetch": "^2.7.0",
-    "openai": "^4.52.7"
+    "openai": "^4.52.7",
+    "unfluff": "^3.2.0"
   }
 }
