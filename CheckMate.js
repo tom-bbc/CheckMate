@@ -1,20 +1,13 @@
 const { claimDetection } = require('./ClaimDetection');
 const { factCheck, logFactChecks } = require('./GoogleFactCheck');
 
-module.exports.CheckMate = async (transcript, log_output) => {
+module.exports.getAndCheckClaims = async (transcript, log_output) => {
     // Data structures & variables
     log_output = log_output ?? false;
     let fact_check_database = [];
 
     // Use OpenAI GPT model to detect & extract claims in the transcript
     const detected_claims = await claimDetection(transcript);
-
-    if (log_output) {
-        console.log("------------------------------------------------------------------------------------------------------------------------");
-        console.log("\nAll detected claims:");
-        console.log(detected_claims);
-        console.log("\n------------------------------------------------------------------------------------------------------------------------");
-    }
 
     // Use Google Fact Check to verify each claim in the transcript
     for (let claim_index = 0; claim_index < detected_claims.length; claim_index++) {

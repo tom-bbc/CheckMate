@@ -31,7 +31,7 @@ module.exports.claimDetection = async (transcript) => {
 
     // Retrieve and format response from GPT model
     try {
-        const openai = new OpenAI({ apiKey: auth.OPEN_API_KEY })
+        const openai = new OpenAI({ apiKey: auth.OPEN_API_KEY });
 
         const response = await openai.chat.completions.create({
             messages: [
