@@ -1,13 +1,16 @@
 const { claimDetection } = require('./ClaimDetection');
 const { factCheck, logFactChecks } = require('./GoogleFactCheck');
 
-module.exports.getAndCheckClaims = async (transcript, log_output) => {
+module.exports.getClaims = async (transcript, openai_api_key) => {
+    // Use OpenAI GPT model to detect & extract claims in the transcript
+    const detected_claims = await claimDetection(transcript, openai_api_key);
+    return detected_claims;
+}
+
+module.exports.checkClaims = async (detected_claims, log_output) => {
     // Data structures & variables
     log_output = log_output ?? false;
     let fact_check_database = [];
-
-    // Use OpenAI GPT model to detect & extract claims in the transcript
-    const detected_claims = await claimDetection(transcript);
 
     // Use Google Fact Check to verify each claim in the transcript
     for (let claim_index = 0; claim_index < detected_claims.length; claim_index++) {
@@ -17,8 +20,7 @@ module.exports.getAndCheckClaims = async (transcript, log_output) => {
         // Store result of each fact check in global database
         const database_entry = {
             "claim_from_transcript": claim,
-            "google_fact_check": fact_check,
-            "transcript_extract": transcript
+            "google_fact_check": fact_check
         };
         fact_check_database.push(database_entry);
 

@@ -1,10 +1,8 @@
 const { OpenAI } = require("openai");
-const { getAuth } = require('./awsauth');
+const { formatJSONfromOpenAI } = require('./utils');
 
-module.exports.claimDetection = async (transcript) => {
-    // Get OpenAI credentials
-    const auth = await getAuth();
 
+module.exports.claimDetection = async (transcript, openai_api_key) => {
     // Define prompt to send to GPT model
     const prompt = `
         I will provide you with a transcript. Extract the key factual claims from this transcript.
@@ -31,7 +29,7 @@ module.exports.claimDetection = async (transcript) => {
 
     // Retrieve and format response from GPT model
     try {
-        const openai = new OpenAI({ apiKey: auth.OPEN_API_KEY });
+        const openai = new OpenAI({ apiKey: openai_api_key });
 
         const response = await openai.chat.completions.create({
             messages: [
@@ -42,16 +40,7 @@ module.exports.claimDetection = async (transcript) => {
         });
 
         // If response includes text & json, start from element '```json\n' in response content and end on element '```'
-        const json_start_char = '```json\n';
-        const json_end_char = '```';
-        let json_content = response.choices[0].message.content;
-
-        if (json_content.includes(json_start_char) && json_content.includes(json_end_char)) {
-            json_content = json_content.split(json_start_char)[1];
-            json_content = json_content.split(json_end_char)[0];
-        }
-
-        const detected_claims = JSON.parse(json_content);
+        const detected_claims = formatJSONfromOpenAI(response);
         return detected_claims;
 
     } catch (error) {

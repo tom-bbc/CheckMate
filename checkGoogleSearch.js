@@ -1,9 +1,11 @@
 const axios = require('axios');
 const extractor = require('unfluff');
-
+const { OpenAI } = require("openai");
+const { formatJSONfromOpenAI } = require('./utils');
 const credentials = require('./credentials.json');
 
-async function gatherContextFromGoogle(claim) {
+
+const getGoogleSearchContext = async (claim) => {
     const GOOGLE_SEARCH_API_KEY = credentials.google_search_api_key;
     const SEARCH_ENGINE_ID = credentials.google_search_cx_id;
     const num_search_results = 5;
@@ -29,39 +31,102 @@ async function gatherContextFromGoogle(claim) {
         const article = await axios.get(search_result.link);
         let article_contents = extractor(article.data);
 
-        const article_data = {
+        const article_info = {
             url: search_result.link,
             title: article_contents.title,
             date: article_contents.date,
             publisher: article_contents.publisher,
-            author: article_contents.author,
             lang: article_contents.lang,
             text: article_contents.text
         };
 
-        fact_check_articles.push(article_data);
+        fact_check_articles.push(article_info);
     }
 
-    console.log(fact_check_articles);
-    const result = {
-        claim: claim,
-        context: fact_check_articles
-    };
-
-    return result;
+    return fact_check_articles;
 }
 
 
-const detected_claims = [
-    "Every week, 300 of our citizens are killed by heroin alone, 90% of which floods across from our southern border.",
-    "More Americans will die from drugs this year than were killed in the entire Vietnam war.",
-    "Over the years, thousands of Americans have been brutally killed by those who illegally entered our country.",
-    "In the last two years, ICE officers made 266,000 arrests of aliens with criminal records, including those charged or convicted of 100,000 assaults, 30,000 sex crimes, and 4,000 violent killings.",
-    "The NHS went through the best part of two years where the NHS couldn't conduct all the treatments it normally would.",
-    "The NHS was impacted by industrial action and if it wasn't for that, half a million appointments would have been set.",
-    "We have now settled pay rises with everyone in the NHS except for the junior doctors.",
-    "This year alone, 10,000 people have crossed on boats. That's a record number."
-];
+module.exports.factCheckGoogleSearch = async (claim, openai_api_key) => {
+    // Send Google search query to find relevant articles on the web
+    const contextual_articles = await getGoogleSearchContext(claim);
 
-let claim = detected_claims[6];
-gatherContextFromGoogle(claim);
+    // Setup OpenAI model connection
+    const openai = new OpenAI({ apiKey: openai_api_key });
+
+    // Send claim & each article to OpenAI to fact-check the claim
+    let fact_checked_claim = {
+        claim: claim,
+        fact_checks: []
+    }
+
+    let fact_check_article_response = {
+        conclusion: 'None',
+        article_subsection: 'None'
+    }
+
+    for (const article of contextual_articles) {
+        // Define prompt to send fact check articles to GPT to cross reference with the claim and fact-check
+        const prompt = `
+            I will provide you with a news article and a statement. The statement may or may not be discussed in the article. Your task is to use the news article to fact-check the statement with reference to the content of the article.
+
+            Firstly, identify and extract the relevant article_subsection of text from the article that relates to the statement. Note that the statement may not be included in the article, and the article may be irrelecant to the statement. If a relevant article_subsection is found, this should be output as an exact quote within the JSON format specified below, filling the field 'article_subsection'. If no relevant article_subsection is found, 'article_subsection' should be output with the value 'None'.
+
+            Second, if a relevant article_subsection is found, this should be used to fact-check the input statement by cross-referencing whether the article supports or disproves the statament. If the article supports the statement, the field 'conclusion' in the output JSON object should be given the value 'true'. If the article disproves the statement, the 'conclusion' field should take the value 'false'. If it is not entirely certain whether the article supports or disproves the statement, or more information is needed to produce such a conclusion, the 'conclusion' field should take the value 'Uncertain'. If no relevant article_subsection of text from the article was found in the first task, output 'None' within the 'conclusion' field.
+
+            The output should appear in JSON format as follows:
+
+            "
+                {
+                    "conclusion": 'True' or 'False' or 'Uncertain' or 'None'.
+                    "article_subsection": The relevant article_subsection of the article text to the statement, or 'None' if no relevant article_subsection of text is found.
+                }
+            "
+
+            Here is the input statement: "${claim}"
+
+            Here is the input article:
+            ${article.text}
+        `;
+
+        // Query OpenAI to cross-reference claim and news article to generate fact-check
+        try {
+            const response = await openai.chat.completions.create({
+                messages: [
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant focussed fact-checking statements based on news article extracts."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    },
+                ],
+                model: "gpt-4o",
+            });
+
+            fact_check_article_response = formatJSONfromOpenAI(response);
+
+        } catch (error) {
+            console.error(error);
+            console.log("ERROR: OpenAI call failed.");
+        }
+
+        // If fact-check generated, add to collection
+        if (fact_check_article_response.conclusion != 'None' && fact_check_article_response.article_subsection != 'None') {
+            const fact_check_info = {
+                article_url: article.url,
+                conclusion: fact_check_article_response.conclusion,
+                article_title: article.title,
+                article_publisher: article.publisher,
+                article_date: article.date,
+                article_lang: article.lang,
+                article_subsection: fact_check_article_response.article_subsection
+            }
+
+            fact_checked_claim.fact_checks.push(fact_check_info);
+        }
+    }
+
+    return fact_checked_claim;
+}
