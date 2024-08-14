@@ -1,5 +1,7 @@
 const { claimDetection } = require('./ClaimDetection');
-const { factCheck, logFactChecks } = require('./GoogleFactCheck');
+const { googleFactCheck } = require('./GoogleFactCheck');
+const { factCheckGoogleSearch } = require('./checkGoogleSearch');
+
 
 module.exports.getClaims = async (transcript, openai_api_key) => {
     // Use OpenAI GPT model to detect & extract claims in the transcript
@@ -7,27 +9,42 @@ module.exports.getClaims = async (transcript, openai_api_key) => {
     return detected_claims;
 }
 
-module.exports.checkClaims = async (detected_claims, log_output) => {
-    // Data structures & variables
-    log_output = log_output ?? false;
-    let fact_check_database = [];
 
-    // Use Google Fact Check to verify each claim in the transcript
-    for (let claim_index = 0; claim_index < detected_claims.length; claim_index++) {
-        const claim = detected_claims[claim_index]['Claim'];
-        const fact_check = await factCheck(claim);
+const checkSingleClaim = async (claim_text, fact_check_method, openai_api_key) => {
+    let fact_check_result = [];
 
-        // Store result of each fact check in global database
-        const database_entry = {
-            "claim_from_transcript": claim,
-            "google_fact_check": fact_check
-        };
-        fact_check_database.push(database_entry);
-
-        if (log_output) {
-            console.log("\n * Transcript claim  :", claim);
-            logFactChecks(fact_check);
-            console.log("\n------------------------------------------------------------------------------------------------------------------------");
-        }
+    // Send claim to either Google Fact Check API or use the Google search & OpenAI summary method
+    if (fact_check_method === "Google Fact Check") {
+        fact_check_result = await googleFactCheck(claim_text);
+    } else if (fact_check_method === "Google search & OpenAI summary" && openai_api_key != '') {
+        fact_check_result = await factCheckGoogleSearch(claim_text, openai_api_key);
     }
+
+    // Format claim & fact-check together for database storage
+    let fact_checked_claim = {
+        transcriptClaim: claim_text,
+        factCheckResults: fact_check_result
+    }
+
+    return fact_checked_claim;
+}
+
+
+module.exports.checkClaimArray = async (detected_claims, fact_check_method, openai_api_key) => {
+    // Data structures & variables
+    fact_check_method = fact_check_method ?? "Google Fact Check";
+    openai_api_key = openai_api_key ?? '';
+    let fact_checked_claims = [];
+
+    // Use fact-check methods to verify each claim in an array of claim objects
+    for (let claim_index = 0; claim_index < detected_claims.length; claim_index++) {
+        const claim = detected_claims[claim_index].Claim;
+        const checked_claim = await checkSingleClaim(claim, fact_check_method, openai_api_key);
+        console.log(checked_claim);
+
+        // Store result of each fact check in global database with its associated claim
+        fact_checked_claims.push(checked_claim);
+    }
+
+    return fact_checked_claims;
 }

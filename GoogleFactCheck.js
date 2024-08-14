@@ -1,21 +1,36 @@
 const fetch = require('node-fetch');
 const credentials = require('./credentials.json');
 
-module.exports.factCheck = async (claim) => {
+
+module.exports.googleFactCheck = async (claim_text) => {
     const google_api_key = credentials.google_fact_check_api_key;
     const url = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
-    const request = `${url}?key=${google_api_key}&query=${claim}`;
+    const request = `${url}?key=${google_api_key}&query=${claim_text}`;
 
     let response = await fetch(request);
     response = await response.json();
 
-    if (Object.keys(response).length === 0) {
-        return [];
-    } else {
-        return response['claims'];
+    let fact_check_results = [];
+
+    if (Object.keys(response).length > 0) {
+        for (const result of response['claims']) {
+            const factCheckResult = {
+                factCheckMethod: "Google Fact Check",
+                matchedClaimTitle: result.text,
+                matchedClaimSpeaker: result.claimant,
+                reviewArticleExtract: '',
+                claimReview: result.claimReview
+            }
+
+            fact_check_results.push(factCheckResult);
+        }
     }
+
+    return fact_check_results;
 };
 
+
+/***
 exports.logFactChecks = (fact_checks) => {
     if (fact_checks.length === 0) {
         console.log(" * Fact check result : No information found in Google Fact Check database.");
@@ -45,3 +60,4 @@ exports.logFactChecks = (fact_checks) => {
         }
     }
 }
+*/
