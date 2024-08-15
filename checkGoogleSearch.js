@@ -9,7 +9,7 @@ const getGoogleSearchContext = async (search_query) => {
     const GOOGLE_SEARCH_API_KEY = credentials.google_search_api_key;
     const SEARCH_ENGINE_ID = credentials.google_search_cx_id;
     const num_search_results = 5;
-    const google_search_url = "https://www.googleapis.com/customsearch/v1";
+    const google_search_api = "https://www.googleapis.com/customsearch/v1";
 
     const params = {
         num: num_search_results,
@@ -18,7 +18,7 @@ const getGoogleSearchContext = async (search_query) => {
         q: search_query
     };
 
-    const response = await axios.get(google_search_url, {params});
+    const response = await axios.get(google_search_api, {params});
     const search_results_raw = response.data.items;
 
     const fact_check_articles = [];
@@ -28,24 +28,25 @@ const getGoogleSearchContext = async (search_query) => {
             continue;
         }
 
+        let article;
         try {
-            const article = await axios.get(search_result.link);
-            const article_contents = extractor(article.data);
-
-            const article_info = {
-                url: search_result.link,
-                title: article_contents.title,
-                date: article_contents.date,
-                publisher: article_contents.publisher,
-                lang: article_contents.lang,
-                text: article_contents.text
-            };
-
-            fact_check_articles.push(article_info);
+            article = await axios.get(search_result.link);
         } catch (error) {
-            console.error(error);
-            console.log("ERROR: Google Search call failed.");
+            console.log(`<!> ERROR: "${error.message}". Cannot retrieve article at URL "${search_result.link}". <!>`);
+            continue;
         }
+
+        const article_contents = extractor(article.data);
+        const article_info = {
+            url: search_result.link,
+            title: article_contents.title,
+            date: article_contents.date,
+            publisher: article_contents.publisher,
+            lang: article_contents.lang,
+            text: article_contents.text
+        };
+
+        fact_check_articles.push(article_info);
     }
 
     return fact_check_articles;

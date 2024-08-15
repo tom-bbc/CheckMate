@@ -14,8 +14,16 @@ const checkSingleClaim = async (claim_text, fact_check_method, openai_api_key) =
     let fact_check_result = [];
 
     // Send claim to either Google Fact Check API or use the Google search & OpenAI summary method
-    if (fact_check_method === "Google Fact Check") {
+    if (fact_check_method.toLowerCase() === "any") {
         fact_check_result = await googleFactCheck(claim_text);
+
+        if (fact_check_result.length === 0) {
+            fact_check_result = await factCheckGoogleSearch(claim_text, openai_api_key);
+        }
+
+    } else if (fact_check_method === "Google Fact Check") {
+        fact_check_result = await googleFactCheck(claim_text);
+
     } else if (fact_check_method === "Google search & OpenAI summary" && openai_api_key != '') {
         fact_check_result = await factCheckGoogleSearch(claim_text, openai_api_key);
     }
@@ -40,10 +48,10 @@ module.exports.checkClaimArray = async (detected_claims, fact_check_method, open
     for (let claim_index = 0; claim_index < detected_claims.length; claim_index++) {
         const claim = detected_claims[claim_index].Claim;
         const checked_claim = await checkSingleClaim(claim, fact_check_method, openai_api_key);
-        console.log(checked_claim);
 
         // Store result of each fact check in global database with its associated claim
         fact_checked_claims.push(checked_claim);
+        console.log(checked_claim);
     }
 
     return fact_checked_claims;

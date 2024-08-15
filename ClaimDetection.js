@@ -27,26 +27,31 @@ module.exports.claimDetection = async (transcript, openai_api_key) => {
         ${transcript}
     `;
 
-    // Retrieve and format response from GPT model
+    // Set up connection to OpenAI API
+    let openai;
     try {
-        const openai = new OpenAI({ apiKey: openai_api_key });
+        openai = new OpenAI({ apiKey: openai_api_key });
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        return [];
+    }
 
-        const response = await openai.chat.completions.create({
+    // Send prompt & retrieve response from OpenAI model
+    let response;
+    try{
+        response = await openai.chat.completions.create({
             messages: [
                 { "role": "system", "content": "You are a helpful assistant focussed on extracting verifiable factual claims from transcripts of political debates and discussion." },
                 { "role": "user", "content": prompt },
             ],
             model: "gpt-4o",
         });
-
-        // If response includes text & json, start from element '```json\n' in response content and end on element '```'
-        const detected_claims = formatJSONfromOpenAI(response);
-        return detected_claims;
-
     } catch (error) {
-        console.error(error);
-        console.log("ERROR: OpenAI call failed.");
-
+        console.log(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
         return [];
     }
+
+    // If response includes text & json, start from element '```json\n' in response content and end on element '```'
+    const detected_claims = formatJSONfromOpenAI(response);
+    return detected_claims;
 }
