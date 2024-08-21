@@ -8,7 +8,7 @@ const credentials = require('./credentials.json');
 const getGoogleSearchContext = async (search_query) => {
     const GOOGLE_SEARCH_API_KEY = credentials.google_search_api_key;
     const SEARCH_ENGINE_ID = credentials.google_search_cx_id;
-    const num_search_results = 5;
+    const num_search_results = 3;
     const google_search_api = "https://www.googleapis.com/customsearch/v1";
 
     const params = {
@@ -53,7 +53,7 @@ const getGoogleSearchContext = async (search_query) => {
 }
 
 
-const checkClaimAgainstArticle = async (claim_text, article_text, openai_connection) => {
+const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connection) => {
     // Define prompt to send fact check articles to GPT to cross reference with the claim and fact-check
     const prompt = `
         I will provide you with a news article and a statement. The statement may or may not be discussed in the article. Your task is to use the news article to fact-check the statement with reference to the content of the article.
@@ -84,33 +84,35 @@ const checkClaimAgainstArticle = async (claim_text, article_text, openai_connect
         article_subsection: 'None'
     }
 
-    try {
-        const response = await openai_connection.chat.completions.create({
-            messages: [
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant focussed fact-checking statements based on news article extracts."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                },
-            ],
-            model: "gpt-4o",
-        });
+    if (article_text.length > 0) {
+        try {
+            const response = await openai_connection.chat.completions.create({
+                messages: [
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant focussed fact-checking statements based on news article extracts."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    },
+                ],
+                model: "gpt-4o",
+            });
 
-        openai_response = formatJSONfromOpenAI(response);
+            openai_response = formatJSONfromOpenAI(response);
 
-    } catch (error) {
-        console.error(error);
-        console.log("ERROR: OpenAI call failed.");
+        } catch (error) {
+            console.error(error);
+            console.log("ERROR: OpenAI call failed.");
+        }
     }
 
     return openai_response;
 }
 
 
-module.exports.factCheckGoogleSearch = async (claim_text, openai_api_key) => {
+module.exports.searchAndReview = async (claim_text, openai_api_key) => {
     // Send Google search query to find relevant articles on the web
     const contextual_articles = await getGoogleSearchContext(claim_text);
 
@@ -122,24 +124,27 @@ module.exports.factCheckGoogleSearch = async (claim_text, openai_api_key) => {
 
     for (const article of contextual_articles) {
         const article_text = article.text;
-        const fact_check = await checkClaimAgainstArticle(claim_text, article_text, openai);
+        const article_url = new URL(article.url);
+        const publisher_url_href = article_url.origin;
+
+        const fact_check = await reviewClaimAgainstArticle(claim_text, article_text, openai);
 
         // If fact-check generated, add to collection
         if (fact_check.conclusion != 'None' && fact_check.article_subsection != 'None') {
             const factCheckResult = {
-                factCheckMethod: "Google search with OpenAI summary",
+                factCheckMethod: "Search and review (Google & OpenAI)",
                 matchedClaimTitle: article.title,
                 matchedClaimSpeaker: '',
-                reviewArticleExtract: fact_check.article_subsection,
                 claimReview: [{
 					publisher: {
 						name: article.publisher,
-						url: ''
+						url: publisher_url_href
                     },
-                    url: article.url,
+                    url: article_url.href,
                     title: article.title,
                     textualRating: fact_check.conclusion,
-                    languageCode: article.lang
+                    languageCode: article.lang,
+                    reviewArticleExtract: fact_check.article_subsection
                 }]
             }
 

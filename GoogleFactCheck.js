@@ -14,12 +14,18 @@ module.exports.googleFactCheck = async (claim_text) => {
 
     if (Object.keys(response).length > 0) {
         for (const result of response['claims']) {
+            let claim_reviews = result.claimReview;
+            claim_reviews = claim_reviews.map(review => {
+                review.reviewArticleExtract = '';
+                return review;
+            });
+
             const factCheckResult = {
                 factCheckMethod: "Google Fact Check",
                 matchedClaimTitle: result.text,
                 matchedClaimSpeaker: result.claimant,
                 reviewArticleExtract: '',
-                claimReview: result.claimReview
+                claimReview: claim_reviews
             }
 
             fact_check_results.push(factCheckResult);
