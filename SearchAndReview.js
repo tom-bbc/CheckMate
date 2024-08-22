@@ -2,19 +2,16 @@ const axios = require('axios');
 const extractor = require('unfluff');
 const { OpenAI } = require("openai");
 const { formatJSONfromOpenAI } = require('./utils');
-const credentials = require('./credentials.json');
 
 
-const getGoogleSearchContext = async (search_query) => {
-    const GOOGLE_SEARCH_API_KEY = credentials.google_search_api_key;
-    const SEARCH_ENGINE_ID = credentials.google_search_cx_id;
+const getGoogleSearchContext = async (search_query, api_keys) => {
     const num_search_results = 3;
     const google_search_api = "https://www.googleapis.com/customsearch/v1";
 
     const params = {
         num: num_search_results,
-        key: GOOGLE_SEARCH_API_KEY,
-        cx: SEARCH_ENGINE_ID,
+        key: api_keys.google_search,
+        cx: api_keys.search_engine_id,
         q: search_query
     };
 
@@ -112,12 +109,12 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
 }
 
 
-module.exports.searchAndReview = async (claim_text, openai_api_key) => {
+module.exports.searchAndReview = async (claim_text, api_keys) => {
     // Send Google search query to find relevant articles on the web
-    const contextual_articles = await getGoogleSearchContext(claim_text);
+    const contextual_articles = await getGoogleSearchContext(claim_text, api_keys);
 
     // Setup OpenAI model connection
-    const openai = new OpenAI({ apiKey: openai_api_key });
+    const openai = new OpenAI({ apiKey: api_keys.openai });
 
     // Send claim & each article to OpenAI to fact-check the claim
     let fact_check_results = [];
