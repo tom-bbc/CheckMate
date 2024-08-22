@@ -4,19 +4,19 @@ const { searchAndReview } = require('./SearchAndReview');
 const { splitTranscriptBySentence, countWordsInSentence } = require('./utils');
 
 
-module.exports.CheckMate = async (input_transcript, openai_api_key, service, input_type) => {
+module.exports.CheckMate = async (input_transcript, openai_api_key, input_type, service) => {
     // Data structures & variables
     service = service ?? "Google Fact Check";
     openai_api_key = openai_api_key ?? '';
     let fact_checked_claims = [];
 
-    if (input_type === "sentences") {
+    if (input_type.toLowerCase() === "sentences") {
         // Split transcript into composite sentences
         const sentences = splitTranscriptBySentence(transcript);
 
         // Extract claims & fact check each sentence
         fact_checked_claims = sentencesCheckMate(sentences, openai_api_key, service);
-    } else if (input_type === "transcript") {
+    } else if (input_type.toLowerCase() === "transcript") {
         fact_checked_claims = transcriptCheckMate(input_transcript, openai_api_key, service);
     }
 
