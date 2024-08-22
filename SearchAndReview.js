@@ -1,7 +1,7 @@
 const axios = require('axios');
 const extractor = require('unfluff');
 const { OpenAI } = require("openai");
-const { formatJSONfromOpenAI, getTextSimilarity } = require('./utils');
+const { formatJSONfromOpenAI } = require('./utils');
 const credentials = require('./credentials.json');
 
 

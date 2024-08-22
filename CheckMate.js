@@ -11,7 +11,11 @@ module.exports.CheckMate = async (input_transcript, openai_api_key, service, inp
     let fact_checked_claims = [];
 
     if (input_type === "sentences") {
-        fact_checked_claims = sentencesCheckMate(input_transcript, openai_api_key, service);
+        // Split transcript into composite sentences
+        const sentences = splitTranscriptBySentence(transcript);
+
+        // Extract claims & fact check each sentence
+        fact_checked_claims = sentencesCheckMate(sentences, openai_api_key, service);
     } else if (input_type === "transcript") {
         fact_checked_claims = transcriptCheckMate(input_transcript, openai_api_key, service);
     }
@@ -20,10 +24,7 @@ module.exports.CheckMate = async (input_transcript, openai_api_key, service, inp
 }
 
 
-const sentencesCheckMate = async (transcript, openai_api_key, service) => {
-    // Split transcript into composite sentences
-    const transcript_sentences = splitTranscriptBySentence(transcript);
-
+const sentencesCheckMate = async (transcript_sentences, openai_api_key, service) => {
     // Populate sentence-claim-factcheck database
     let database = [];
 
