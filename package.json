@@ -12,6 +12,7 @@
     "@aws-sdk/client-s3": "^3.614.0",
     "@aws-sdk/client-ssm": "^3.614.0",
     "axios": "^1.7.4",
+    "compute-cosine-similarity": "^1.1.0",
     "node-fetch": "^2.7.0",
     "openai": "^4.52.7",
     "unfluff": "^3.2.0"

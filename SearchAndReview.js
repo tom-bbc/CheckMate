@@ -1,7 +1,7 @@
 const axios = require('axios');
 const extractor = require('unfluff');
 const { OpenAI } = require("openai");
-const { formatJSONfromOpenAI } = require('./utils');
+const { formatJSONfromOpenAI, getTextSimilarity } = require('./utils');
 const credentials = require('./credentials.json');
 
 
@@ -144,7 +144,7 @@ module.exports.searchAndReview = async (claim_text, openai_api_key) => {
                     title: article.title,
                     textualRating: fact_check.conclusion,
                     languageCode: article.lang,
-                    reviewArticleExtract: fact_check.article_subsection
+                    reviewArticleExtract: fact_check.article_subsection,
                 }]
             }
 
