@@ -6,7 +6,6 @@ const { splitTranscriptBySentence, countWordsInSentence } = require('./utils');
 
 module.exports.CheckMate = async (input_transcript, input_type, service, api_keys) => {
     // Data structures & variables
-    service = service ?? "Google Fact Check";
     let fact_checked_claims = [];
 
     if (input_type.toLowerCase() === "sentences") {

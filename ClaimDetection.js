@@ -15,7 +15,7 @@ module.exports.sentenceClaimDetection = async (sentence, openai_api_key) => {
          * Output array: ["this year alone, 10,000 people have crossed on boats"]
 
         Example 2:
-         * Input sentence: "We need to smash the gangs that are running this file trade making a huge amount of money, putting some of the most vulnerable people in boats across the channel."
+         * Input sentence: "We need to smash the gangs that are running this file trade making a huge amount of money."
          * Output array: []
 
         This is the input sentence from a transcript to extract claims from:
