@@ -2,9 +2,9 @@
   "name": "checkmate",
   "description": "JournalismAI 2024 project.",
   "version": "1.0.0",
-  "main": "example-script.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node example-script.js",
+    "start": "node main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Tom Potter",

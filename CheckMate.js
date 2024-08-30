@@ -43,7 +43,8 @@ const sentencesCheckMate = async (transcript_sentences, service, api_keys) => {
         }
 
         // Use OpenAI GPT model to detect & extract claims in the transcript
-        const detected_claims = await sentenceClaimDetection(sentence, api_keys.openai);
+        const context = '';
+        const detected_claims = await sentenceClaimDetection(sentence, context, api_keys.openai);
 
         if (detected_claims.length === 0) {
             database.push(claimless_sentence);

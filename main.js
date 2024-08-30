@@ -22,8 +22,8 @@ const main = async () => {
 
     // Choose input type (full "transcript" or individual "sentences")
     // & fact check service ("Google Fact Check", "Search and Review", or "Any")
-    const service = "Any";
-    // const service = "Google Fact Check";
+    // const service = "Any";
+    const service = "Google Fact Check";
     // const service = "Search and review";
 
     const input_type = "transcript";

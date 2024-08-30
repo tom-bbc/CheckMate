@@ -1,7 +1,7 @@
 const { z } = require("zod");
 const axios = require('axios');
-const { OpenAI } = require("openai");
 const extractor = require('unfluff');
+const { OpenAI } = require("openai");
 const { zodResponseFormat } = require("openai/helpers/zod");
 
 
@@ -59,7 +59,7 @@ const getGoogleSearchContext = async (search_query, api_keys) => {
 
 const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connection) => {
     // Define prompt to send fact check articles to GPT to cross reference with the claim and fact-check
-    const prompt = `
+    const system_prompt = `
         I will provide you with a news article and a statement. The statement may or may not be discussed in the article. Your task is to use the news article to fact-check the statement with reference to the content of the article and return an output.
 
         Firstly, identify and extract the relevant article_subsection of text from the article that relates to the statement. Note that the statement may not be included in the article, and the article may be irrelecant to the statement. If a relevant article_subsection is found, this should be output as an exact quote within the JSON format specified below, filling the field 'article_subsection'. If no relevant article_subsection is found, 'article_subsection' should be output with the value 'None'.
@@ -70,6 +70,9 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
             - "conclusion": 'True' or 'False' or 'Uncertain' or 'None'.
             - "article_subsection": The relevant article_subsection of the article text to the statement, or 'None' if no relevant article_subsection of text is found.
 
+    `;
+
+    const user_prompt = `
         Here is the input statement: "${claim_text}"
 
         Here is the input article:
@@ -88,14 +91,8 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
         try {
             response = await openai_connection.chat.completions.create({
                 messages: [
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant focussed fact-checking statements based on news article extracts."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    },
+                    { "role": "system", "content": system_prompt },
+                    { "role": "user", "content": user_prompt },
                 ],
                 model: "gpt-4o-2024-08-06",
                 response_format: zodResponseFormat(claimReviewObject, "output"),
