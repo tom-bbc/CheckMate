@@ -1,22 +1,28 @@
+const { z } = require("zod");
 const { OpenAI } = require("openai");
-const { formatJSONfromOpenAI } = require('./utils');
+const { zodResponseFormat } = require("openai/helpers/zod");
+
+
+const claimsObject = z.object({
+    claims: z.array(z.string()),
+});
 
 
 module.exports.sentenceClaimDetection = async (sentence, openai_api_key) => {
     // Define prompt to send to GPT model
     const prompt = `
-        I will provide you with a sngle sentence from a transcript. If the sentence contains any factual claims, extract and return those claims.
+        I will provide you with a single sentence from a transcript. If the sentence contains any factual claims, extract and return those claims.
         A claim is a factual statement that should be an exact quote from the trainscript with no rewriting or summarisation.
         You should respond with an array containing any extracted claims. If no claims are found, return any empty array. Do not respond with anything but an array
         Ensure to only include relevant and substantial claims that are verifiable and not opinion or sarcasm.
 
         Example 1:
          * Input sentence: "I tell you Stephen, this year alone 10,000 people have crossed on boats, that's a record number, so again, he's made a promise and he's completely failed to keep it."
-         * Output array: ["this year alone, 10,000 people have crossed on boats"]
+         * Output claims: ["this year alone, 10,000 people have crossed on boats"]
 
         Example 2:
          * Input sentence: "We need to smash the gangs that are running this file trade making a huge amount of money."
-         * Output array: []
+         * Output claims: []
 
         This is the input sentence from a transcript to extract claims from:
         ${sentence}
@@ -33,23 +39,30 @@ module.exports.sentenceClaimDetection = async (sentence, openai_api_key) => {
 
     // Send prompt & retrieve response from OpenAI model
     let response;
-    try{
+    try {
         response = await openai.chat.completions.create({
             messages: [
                 { "role": "system", "content": "You are a helpful assistant focussed on extracting verifiable factual claims from transcripts of political debates and discussion." },
                 { "role": "user", "content": prompt },
             ],
-            model: "gpt-4o",
+            model: "gpt-4o-2024-08-06",
+            response_format: zodResponseFormat(claimsObject, "claims"),
         });
     } catch (error) {
         console.log(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
         return [];
     }
 
-    // If response includes text & json, start from element '```json\n' in response content and end on element '```'
-    const detected_claims = formatJSONfromOpenAI(response);
+    // Extract array of claims from OpenAI response
+    let detected_claims = response.choices[0].message;
 
-    return detected_claims;
+    if (detected_claims.refusal) {
+        return [];
+    } else {
+        detected_claims = JSON.parse(detected_claims.content).claims;
+        console.log("Claims:", detected_claims);
+        return detected_claims;
+    }
 }
 
 
@@ -61,7 +74,7 @@ module.exports.transcriptClaimDetection = async (transcript, openai_api_key) => 
         Ensure to only include relevant and substantial claims that are verifiable and not opinion or sarcasm.
         Return the extracted claims within an output array. If no claims are found return an empty array.
 
-        Example output:
+        Example output claims:
         [
             "More Americans will die from drugs this year than were killed in the entire Vietnam war.",
             "We have now settled pay rises with everyone in the NHS except for the junior doctors.",
@@ -89,15 +102,21 @@ module.exports.transcriptClaimDetection = async (transcript, openai_api_key) => 
                 { "role": "system", "content": "You are a helpful assistant focussed on extracting verifiable factual claims from transcripts of political debates and discussion." },
                 { "role": "user", "content": prompt },
             ],
-            model: "gpt-4o",
+            model: "gpt-4o-2024-08-06",
+            response_format: zodResponseFormat(claimsObject, "claims"),
         });
     } catch (error) {
         console.log(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
         return [];
     }
 
-    // If response includes text & json, start from element '```json\n' in response content and end on element '```'
-    const detected_claims = formatJSONfromOpenAI(response);
+    // Extract array of claims from OpenAI response
+    let detected_claims = response.choices[0].message;
 
-    return detected_claims;
+    if (detected_claims.refusal) {
+        return [];
+    } else {
+        detected_claims = JSON.parse(detected_claims.content).claims;
+        return detected_claims;
+    }
 }

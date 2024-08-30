@@ -2,8 +2,9 @@
   "name": "checkmate",
   "description": "JournalismAI 2024 project.",
   "version": "1.0.0",
-  "main": "CheckMate.js",
+  "main": "example-script.js",
   "scripts": {
+    "start": "node example-script.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Tom Potter",
@@ -14,7 +15,9 @@
     "axios": "^1.7.4",
     "compute-cosine-similarity": "^1.1.0",
     "node-fetch": "^2.7.0",
-    "openai": "^4.52.7",
-    "unfluff": "^3.2.0"
+    "npm": "^10.8.3",
+    "openai": "^4.57.0",
+    "unfluff": "^3.2.0",
+    "zod": "^3.23.8"
   }
 }

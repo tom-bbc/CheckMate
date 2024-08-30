@@ -9,7 +9,7 @@ const main = async () => {
     const auth = await getAuth();
 
     const api_keys = {
-        openai: auth.OPEN_API_KEY,
+        openai: auth.OPENAI_API_KEY,
         google_fact_check: credentials.google_fact_check_api_key,
         google_search: credentials.google_search_api_key,
         search_engine_id: credentials.google_search_cx_id

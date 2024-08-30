@@ -1,7 +1,14 @@
+const { z } = require("zod");
 const axios = require('axios');
-const extractor = require('unfluff');
 const { OpenAI } = require("openai");
-const { formatJSONfromOpenAI } = require('./utils');
+const extractor = require('unfluff');
+const { zodResponseFormat } = require("openai/helpers/zod");
+
+
+const claimReviewObject = z.object({
+    conclusion: z.string(),
+    article_subsection: z.string(),
+});
 
 
 const getGoogleSearchContext = async (search_query, api_keys) => {
@@ -53,20 +60,15 @@ const getGoogleSearchContext = async (search_query, api_keys) => {
 const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connection) => {
     // Define prompt to send fact check articles to GPT to cross reference with the claim and fact-check
     const prompt = `
-        I will provide you with a news article and a statement. The statement may or may not be discussed in the article. Your task is to use the news article to fact-check the statement with reference to the content of the article.
+        I will provide you with a news article and a statement. The statement may or may not be discussed in the article. Your task is to use the news article to fact-check the statement with reference to the content of the article and return an output.
 
         Firstly, identify and extract the relevant article_subsection of text from the article that relates to the statement. Note that the statement may not be included in the article, and the article may be irrelecant to the statement. If a relevant article_subsection is found, this should be output as an exact quote within the JSON format specified below, filling the field 'article_subsection'. If no relevant article_subsection is found, 'article_subsection' should be output with the value 'None'.
 
         Second, if a relevant article_subsection is found, this should be used to fact-check the input statement by cross-referencing whether the article supports or disproves the statament. If the article supports the statement, the field 'conclusion' in the output JSON object should be given the value 'true'. If the article disproves the statement, the 'conclusion' field should take the value 'false'. If it is not entirely certain whether the article supports or disproves the statement, or more information is needed to produce such a conclusion, the 'conclusion' field should take the value 'Uncertain'. If no relevant article_subsection of text from the article was found in the first task, output 'None' within the 'conclusion' field.
 
-        The output should appear in JSON format as follows:
-
-        "
-            {
-                "conclusion": 'True' or 'False' or 'Uncertain' or 'None'.
-                "article_subsection": The relevant article_subsection of the article text to the statement, or 'None' if no relevant article_subsection of text is found.
-            }
-        "
+        The output should contain:
+            - "conclusion": 'True' or 'False' or 'Uncertain' or 'None'.
+            - "article_subsection": The relevant article_subsection of the article text to the statement, or 'None' if no relevant article_subsection of text is found.
 
         Here is the input statement: "${claim_text}"
 
@@ -76,14 +78,15 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
 
 
     // Query OpenAI to cross-reference claim and news article to generate fact-check
-    let openai_response = {
+    let response;
+    let claim_review = {
         conclusion: 'None',
         article_subsection: 'None'
     }
 
     if (article_text.length > 0) {
         try {
-            const response = await openai_connection.chat.completions.create({
+            response = await openai_connection.chat.completions.create({
                 messages: [
                     {
                         "role": "system",
@@ -94,18 +97,26 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
                         "content": prompt
                     },
                 ],
-                model: "gpt-4o",
+                model: "gpt-4o-2024-08-06",
+                response_format: zodResponseFormat(claimReviewObject, "output"),
             });
-
-            openai_response = formatJSONfromOpenAI(response);
-
         } catch (error) {
-            console.error(error);
-            console.log("ERROR: OpenAI call failed.");
+            console.log(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
+            return claim_review;
         }
-    }
 
-    return openai_response;
+        // Extract array of claim review result from OpenAI response
+        response = response.choices[0].message;
+
+        if (response.refusal) {
+            return claim_review;
+        } else {
+            claim_review = JSON.parse(response.content);
+            return claim_review;
+        }
+    } else {
+        return claim_review;
+    }
 }
 
 
