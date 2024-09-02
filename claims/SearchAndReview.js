@@ -139,7 +139,7 @@ module.exports.searchAndReview = async (claim_text, api_keys) => {
             const factCheckResult = {
                 factCheckMethod: "Search and review (Google & OpenAI)",
                 matchedClaimTitle: article.title,
-                matchedClaimSpeaker: '',
+                matchedClaimSpeaker: 'None',
                 claimReview: [{
 					publisher: {
 						name: article.publisher,

@@ -1,7 +1,6 @@
-const { sentenceClaimDetection, transcriptClaimDetection } = require('./ClaimDetection');
-const { googleFactCheck } = require('./GoogleFactCheck');
-const { searchAndReview } = require('./SearchAndReview');
-const { splitTranscriptBySentence, countWordsInSentence } = require('./utils');
+const { sentenceClaimDetection, transcriptClaimDetection } = require('./claims/ClaimDetection');
+const { googleFactCheck } = require('./claims/GoogleFactCheck');
+const { searchAndReview } = require('./claims/SearchAndReview');
 
 
 module.exports.CheckMate = async (input_transcript, input_type, service, api_keys) => {
@@ -121,4 +120,16 @@ const checkClaimArray = async (detected_claims, fact_check_method, origin_senten
     }
 
     return fact_checked_claims;
+}
+
+
+const splitTranscriptBySentence = (transcript) => {
+    const sentences = transcript.replace(/([.?!])\s*(?=[A-Z])/g, "$1|").split("|");
+    return sentences;
+}
+
+
+const countWordsInSentence = (sentence) => {
+    const no_words = sentence.trim().split(/\s+/).length;
+    return no_words;
 }

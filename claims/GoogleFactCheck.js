@@ -14,7 +14,7 @@ module.exports.googleFactCheck = async (claim_text, google_fc_api_key) => {
         for (const result of response['claims']) {
             let claim_reviews = result.claimReview;
             claim_reviews = claim_reviews.map(review => {
-                review.reviewArticleExtract = '';
+                review.reviewArticleExtract = 'None';
                 return review;
             });
 
@@ -22,7 +22,6 @@ module.exports.googleFactCheck = async (claim_text, google_fc_api_key) => {
                 factCheckMethod: "Google Fact Check",
                 matchedClaimTitle: result.text,
                 matchedClaimSpeaker: result.claimant,
-                reviewArticleExtract: '',
                 claimReview: claim_reviews
             }
 
