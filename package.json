@@ -10,6 +10,7 @@
   "author": "Tom Potter",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.637.0",
     "@aws-sdk/client-s3": "^3.614.0",
     "@aws-sdk/client-ssm": "^3.614.0",
     "axios": "^1.7.4",
@@ -18,6 +19,7 @@
     "npm": "^10.8.3",
     "openai": "^4.57.0",
     "unfluff": "^3.2.0",
+    "util": "^0.12.5",
     "zod": "^3.23.8"
   }
 }

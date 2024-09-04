@@ -26,7 +26,9 @@ const sentencesCheckMate = async (transcript_sentences, service, api_keys) => {
     let database = [];
 
     // Check each sentence for claim
-    for (const sentence of transcript_sentences) {
+    for (let index = 0; index < transcript_sentences.length; index++) {
+        const sentence = transcript_sentences[index];
+
         // Default element for sentences with no claim
         const claimless_sentence = {
             transcriptSentence: sentence,
@@ -42,7 +44,8 @@ const sentencesCheckMate = async (transcript_sentences, service, api_keys) => {
         }
 
         // Use OpenAI GPT model to detect & extract claims in the transcript
-        const context = '';
+        const context_window = Math.max(0, index - 5);
+        const context = transcript_sentences.slice(context_window, index).join(" ");
         const detected_claims = await sentenceClaimDetection(sentence, context, api_keys.openai);
 
         if (detected_claims.length === 0) {
