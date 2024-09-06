@@ -85,14 +85,14 @@ const checkSingleClaim = async (claim_text, fact_check_method, api_keys) => {
 
     // Send claim to either Google Fact Check API or use the Google search & OpenAI summary method
     if (fact_check_method.toLowerCase() === "any") {
-        fact_check_result = await googleFactCheck(claim_text, api_keys.google_fact_check);
+        fact_check_result = await googleFactCheck(claim_text, api_keys.google);
 
         if (fact_check_result.length === 0) {
             fact_check_result = await searchAndReview(claim_text, api_keys);
         }
 
     } else if (fact_check_method.toLowerCase() === "google fact check") {
-        fact_check_result = await googleFactCheck(claim_text, api_keys.google_fact_check);
+        fact_check_result = await googleFactCheck(claim_text, api_keys.google);
 
     } else if (fact_check_method.toLowerCase() === "search and review") {
         fact_check_result = await searchAndReview(claim_text, api_keys);

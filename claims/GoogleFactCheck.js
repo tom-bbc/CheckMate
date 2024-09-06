@@ -1,17 +1,28 @@
-const fetch = require('node-fetch');
+const axios = require("axios");
 
 
-module.exports.googleFactCheck = async (claim_text, google_fc_api_key) => {
-    const url = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
-    const request = `${url}?key=${google_fc_api_key}&query=${claim_text}`;
+module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key) => {
+    const fact_check_api = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
 
-    let response = await fetch(request);
-    response = await response.json();
+    const params = {
+        key: google_fact_check_api_key,
+        query: claim_text
+    };
+    let response;
 
+    try {
+        response = await axios.get(fact_check_api, {params});
+    } catch (error) {
+        console.error(
+            `<!> ERROR: "${error.message}". Google Fact Check API call failed. <!>`
+          );
+          return [];
+    }
+    response = response.data;
     let fact_check_results = [];
 
     if (Object.keys(response).length > 0) {
-        for (const result of response['claims']) {
+        for (const result of response.claims) {
             let claim_reviews = result.claimReview;
             claim_reviews = claim_reviews.map(review => {
                 review.reviewArticleExtract = 'None';

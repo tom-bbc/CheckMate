@@ -1,6 +1,6 @@
 const { z } = require("zod");
-const axios = require('axios');
-const extractor = require('unfluff');
+const axios = require("axios");
+const extractor = require("unfluff");
 const { OpenAI } = require("openai");
 const { zodResponseFormat } = require("openai/helpers/zod");
 
@@ -17,40 +17,42 @@ const getGoogleSearchContext = async (search_query, api_keys) => {
 
     const params = {
         num: num_search_results,
-        key: api_keys.google_search,
+        key: api_keys.google,
         cx: api_keys.search_engine_id,
         q: search_query
     };
 
-    const response = await axios.get(google_search_api, {params});
-    const search_results_raw = response.data.items;
+    let response = await axios.get(google_search_api, {params});
+    response = response.data;
 
     const fact_check_articles = [];
 
-    for (const search_result of search_results_raw) {
-        if (search_result.fileFormat) {
-            continue;
+    if (Object.keys(response).length > 0) {
+        for (const search_result of response.items) {
+            if (search_result.fileFormat) {
+                continue;
+            }
+
+            let article;
+            try {
+                article = await axios.get(search_result.link);
+            } catch (error) {
+                console.log(`<!> ERROR: "${error.message}". Cannot retrieve article at URL "${search_result.link}". <!>`);
+                continue;
+            }
+
+            const article_contents = extractor(article.data);
+            const article_info = {
+                url: search_result.link,
+                title: article_contents.title,
+                date: article_contents.date,
+                publisher: article_contents.publisher,
+                lang: article_contents.lang,
+                text: article_contents.text
+            };
+
+            fact_check_articles.push(article_info);
         }
-
-        let article;
-        try {
-            article = await axios.get(search_result.link);
-        } catch (error) {
-            console.log(`<!> ERROR: "${error.message}". Cannot retrieve article at URL "${search_result.link}". <!>`);
-            continue;
-        }
-
-        const article_contents = extractor(article.data);
-        const article_info = {
-            url: search_result.link,
-            title: article_contents.title,
-            date: article_contents.date,
-            publisher: article_contents.publisher,
-            lang: article_contents.lang,
-            text: article_contents.text
-        };
-
-        fact_check_articles.push(article_info);
     }
 
     return fact_check_articles;
