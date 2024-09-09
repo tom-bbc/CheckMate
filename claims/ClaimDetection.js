@@ -3,13 +3,15 @@ const { OpenAI } = require("openai");
 const { zodResponseFormat } = require("openai/helpers/zod");
 
 
+// Response object from OpenAI API call containing detected claims
 const claimsObject = z.object({
   claims: z.array(z.string()),
 });
 
 
+// Claim detection over a single transcript sentence
 module.exports.sentenceClaimDetection = async (sentence, context, openai_api_key) => {
-  // Define prompt to send to GPT model
+  // Define prompt for OpenAI model to extract claims from a transcript sentence (with preceding context)
   const system_prompt = `
         I will provide you with a single sentence from a transcript. If the sentence contains any factual claims, extract and return those claims in an array.
         A claim is a factual statement that should be an exact quote from the transcript. Ensure to only include relevant and substantial claims that are verifiable and not opinion or sarcasm.
@@ -75,11 +77,9 @@ module.exports.sentenceClaimDetection = async (sentence, context, openai_api_key
 };
 
 
-module.exports.transcriptClaimDetection = async (
-  transcript,
-  openai_api_key
-) => {
-  // Define prompt to send to GPT model
+// Claim detection over a full transcript
+module.exports.transcriptClaimDetection = async (transcript, openai_api_key) => {
+  // Define prompt for OpenAI model to extract claims from a full transcript
   const system_prompt = `
         I will provide you with a transcript. Extract the key factual claims from this transcript.
         A claim is a factual statement that should be an exact quote from the trainscript with no rewriting or summarisation.

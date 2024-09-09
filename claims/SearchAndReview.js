@@ -5,62 +5,84 @@ const { OpenAI } = require("openai");
 const { zodResponseFormat } = require("openai/helpers/zod");
 
 
+// Response object from OpenAI API call containing a claim review
 const claimReviewObject = z.object({
     conclusion: z.string(),
     article_subsection: z.string(),
 });
 
 
-const getGoogleSearchContext = async (search_query, api_keys) => {
+// Gather relevant articles using Google Search API
+const searchForRelevantArticles = async (search_query, google_api_key, google_search_id) => {
+    // Input parameters
+    const black_listed_sources = [
+        'https://trumpwhitehouse.archives.gov',
+    ];
+
+    // Call Google Search API to find relevant article URLs to input claim
     const num_search_results = 3;
     const google_search_api = "https://www.googleapis.com/customsearch/v1";
 
     const params = {
         num: num_search_results,
-        key: api_keys.google,
-        cx: api_keys.search_engine_id,
+        key: google_api_key,
+        cx: google_search_id,
         q: search_query
     };
 
     let response = await axios.get(google_search_api, {params});
     response = response.data;
 
-    const fact_check_articles = [];
+    if (Object.keys(response).length === 0) {
+        return [];
+    }
 
-    if (Object.keys(response).length > 0) {
-        for (const search_result of response.items) {
-            if (search_result.fileFormat) {
-                continue;
-            }
-
-            let article;
-            try {
-                article = await axios.get(search_result.link);
-            } catch (error) {
-                console.log(`<!> ERROR: "${error.message}". Cannot retrieve article at URL "${search_result.link}". <!>`);
-                continue;
-            }
-
-            const article_contents = extractor(article.data);
-            const article_info = {
-                url: search_result.link,
-                title: article_contents.title,
-                date: article_contents.date,
-                publisher: article_contents.publisher,
-                lang: article_contents.lang,
-                text: article_contents.text
-            };
-
-            fact_check_articles.push(article_info);
+    // Extract article body text from found URLs
+    let fact_check_articles = [];
+    for (const search_result of response.items) {
+        // Skip article if not correct format
+        if (search_result.fileFormat) {
+            continue;
         }
+
+        // Skip article if from a blacklisted website
+        const article_url = search_result.link;
+        const is_blacklisted = black_listed_sources.map(source => article_url.includes(source));
+        if (is_blacklisted.includes(true)) {
+            continue;
+        }
+
+        // Extract content from webpage
+        let article;
+        try {
+            article = await axios.get(article_url);
+        } catch (error) {
+            console.log(`<!> ERROR: "${error.message}". Cannot retrieve article at URL "${article_url}". <!>`);
+            continue;
+        }
+
+        const article_contents = extractor(article.data);
+
+        // Format article content into output data structure
+        const article_info = {
+            url: article_url,
+            title: article_contents.title,
+            date: article_contents.date,
+            publisher: article_contents.publisher,
+            lang: article_contents.lang,
+            text: article_contents.text
+        };
+
+        fact_check_articles.push(article_info);
     }
 
     return fact_check_articles;
 }
 
 
+// Review article for presence of claim and use to fact-check the claim (using OpenAI)
 const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connection) => {
-    // Define prompt to send fact check articles to GPT to cross reference with the claim and fact-check
+    // Define prompt to cross-reference article contents with the claim to fact-check it
     const system_prompt = `
         I will provide you with a news article and a statement. The statement may or may not be discussed in the article. Your task is to use the news article to fact-check the statement with reference to the content of the article and return an output.
 
@@ -81,8 +103,7 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
         ${article_text}
     `;
 
-
-    // Query OpenAI to cross-reference claim and news article to generate fact-check
+    // Query OpenAI to cross-reference claim and news article to fact-check the claim
     let response;
     let claim_review = {
         conclusion: 'None',
@@ -104,7 +125,7 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
             return claim_review;
         }
 
-        // Extract array of claim review result from OpenAI response
+        // Extract array of claim review result from OpenAI response and format for output
         response = response.choices[0].message;
 
         if (response.refusal) {
@@ -119,12 +140,13 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
 }
 
 
-module.exports.searchAndReview = async (claim_text, api_keys) => {
+// Search for relevant articles and use to fact-check claim, using Google Search and an OpenAI model
+module.exports.searchAndReview = async (claim_text, google_api_key, google_search_id, openai_api_key) => {
     // Send Google search query to find relevant articles on the web
-    const contextual_articles = await getGoogleSearchContext(claim_text, api_keys);
+    const contextual_articles = await searchForRelevantArticles(claim_text, google_api_key, google_search_id);
 
     // Setup OpenAI model connection
-    const openai = new OpenAI({ apiKey: api_keys.openai });
+    const openai = new OpenAI({ apiKey: openai_api_key });
 
     // Send claim & each article to OpenAI to fact-check the claim
     let fact_check_results = [];
