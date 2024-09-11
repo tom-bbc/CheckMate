@@ -3,6 +3,13 @@ const { dynamoScan, dynamoQuery } = require("../helper/dynamo");
 const getEmbeddingSimilarity = require("compute-cosine-similarity");
 
 
+const process = {
+    env: {
+        FACT_CHECK_TABLE: 'cm-backend-dev-FactChecks',
+    }
+}
+
+
 // Generate a single embedding vector of a text string
 const getEmbedding = async (input_text, openai_connection) => {
     input_text = input_text.replace("\n", " ");
@@ -20,18 +27,72 @@ const getEmbedding = async (input_text, openai_connection) => {
 
 
 // Get the similarity score of two text strings using embeddings
-const getTextSimilarity = async (input_text_1, input_text_2, openai_connection) => {
-    let embedding_1 = await getEmbedding(input_text_1, openai_connection);
-    let embedding_2 = await getEmbedding(input_text_2, openai_connection);
+module.exports.getTextSimilarity = async (input_text_1, input_text_2, openai_api_key) => {
+    // Set up connection to OpenAI API embedding model
+    let openai;
+    try {
+        openai = new OpenAI({ apiKey: openai_api_key });
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        return 0;
+    }
 
+    // Get embedding vectors
+    let embedding_1 = await getEmbedding(input_text_1, openai);
+    let embedding_2 = await getEmbedding(input_text_2, openai);
+
+    // Calculate similarity
     let similarity_score = getEmbeddingSimilarity(embedding_1, embedding_2);
 
     return similarity_score;
 }
 
 
+// Get the similarity score of two text strings using embeddings
+module.exports.getClaimSimilarities = async (input_claim, claim_array, openai_api_key) => {
+    // Set up connection to OpenAI API embedding model
+    let openai;
+    try {
+        openai = new OpenAI({ apiKey: openai_api_key });
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        return [];
+    }
+
+    // Generate embedding for the input claim
+    let input_embedding;
+    try {
+        input_embedding = await getEmbedding(input_claim, openai);
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
+        return [];
+    }
+
+    // Generate embedding for each claim in array
+    let claim_embeddings = [];
+    for (const claim of claim_array) {
+        try {
+            let embedding = await getEmbedding(claim, openai);
+            claim_embeddings.push(embedding);
+        } catch (error) {
+            console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
+            claim_embeddings.push(0.5);
+        }
+    }
+
+    // Generate similarity scores between input claim and all claims in array
+    let similarity_scores = claim_embeddings.map(embedding => getEmbeddingSimilarity(input_embedding, embedding));
+    similarity_scores = similarity_scores.map(score => Number((100 * score).toFixed(2)));
+
+    return similarity_scores;
+}
+
+
 // Search a proprietary database of known fact-checks for an input claim
-module.exports.searchFactCheckDatabase = async (input_claim, openai_api_key) => {
+module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
+    // !! UPDATE: check if embedding already in table, use that if so, and if not compute one, use this, and push to table
+
+    console.log("Called fact check database search.")
     // Get fact-check database from AWS
     let queryParams = {
         TableName: process.env.FACT_CHECK_TABLE,
@@ -43,13 +104,17 @@ module.exports.searchFactCheckDatabase = async (input_claim, openai_api_key) => 
         Select: "SPECIFIC_ATTRIBUTES",
     };
 
-    const data = await dynamoScan(queryParams);
-    const subtable = data.Items;
-    console.log(subtable);
+    let aws_table_data;
+    try {
+        aws_table_data = await dynamoScan(queryParams);
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot connect to fact-check database. <!>`);
+        return [];
+    }
 
     // Extract known claims from database
-    const known_claims = subtable.map(row => row.claim.S);
-    console.log(known_claims);
+    aws_table_data = aws_table_data.Items;
+    const known_claims = aws_table_data.map(row => row.claim.S);
 
     // Set up connection to OpenAI API embedding model
     let openai;
@@ -57,38 +122,43 @@ module.exports.searchFactCheckDatabase = async (input_claim, openai_api_key) => 
         openai = new OpenAI({ apiKey: openai_api_key });
     } catch (error) {
         console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
-        return;
+        return [];
     }
 
-    // Generate embedding for each claim in database
+    // Generate embedding for each claim in database and the input claim
     let claim_embeddings = [];
     for (const claim of known_claims) {
-        let embedding = await getEmbedding(claim, openai);
-        claim_embeddings.push(embedding);
+        try {
+            let embedding = await getEmbedding(claim, openai);
+            claim_embeddings.push(embedding);
+        } catch (error) {
+            console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
+            return [];
+        }
     }
-    console.log(claim_embeddings);
+
+    let input_embedding;
+    try {
+        input_embedding = await getEmbedding(input_claim, openai);
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
+        return [];
+    }
 
     // Generate similarity scores between input claim and all claims in database
-    const input_embedding = await getEmbedding(input_claim, openai);
     let similarity_scores = claim_embeddings.map(embedding => getEmbeddingSimilarity(input_embedding, embedding));
-    console.log(similarity_scores);
 
     // Match the input claim to database claim with maximum similarity score (above threshold)
     const match_threshold = 0.5;
     const max_similarity = Math.max(...similarity_scores);
 
     if (max_similarity < match_threshold) {
-        console.log("No claim found.");
-        return {
-            resultsFound: false,
-            inputClaim: input_claim,
-            factCheck: ''
-        }
+        console.log("No claim found in AWS fact-check database.");
+        return [];
     }
 
     const max_index = similarity_scores.indexOf(max_similarity);
-    const matched_claim_id = subtable[max_index].claimID;
-    console.log(matched_claim_id);
+    const matched_claim_id = aws_table_data[max_index].claimID;
 
     // Retrive fact-check data associated with the matched claim from fact-check database
     queryParams = {
@@ -101,13 +171,38 @@ module.exports.searchFactCheckDatabase = async (input_claim, openai_api_key) => 
         ScanIndexForward: false,
     };
 
-    let matched_claim_data = await dynamoQuery(queryParams);
-    matched_claim_data = matched_claim_data.Items[0];
-    console.log(matched_claim_data);
-
-    return {
-        resultsFound: true,
-        inputClaim: input_claim,
-        factCheck: matched_claim_data
+    let matched_claim_data;
+    try {
+        matched_claim_data = await dynamoQuery(queryParams);
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot connect to fact-check database. <!>`);
+        return [];
     }
+    matched_claim_data = matched_claim_data.Items[0];
+
+    // Format fact-check data into output data structure
+    const article_url = new URL(matched_claim_data.url.S);
+    const publisher_url_href = article_url.origin;
+
+    const fact_check_results = [{
+        factCheckMethod: "Fact check database",
+        matchedClaim: matched_claim_data.claim.S,
+        claimSimilarity: max_similarity,
+        matchedClaimSpeaker: "None",
+        claimReview: [{
+            publisher: {
+                name: "None",
+                url: publisher_url_href
+            },
+            url: article_url.href,
+            title: matched_claim_data.title.S,
+            textualRating: matched_claim_data.textualRating.S,
+            languageCode: matched_claim_data.languageCode.S,
+            reviewArticleExtract: "None",
+        }]
+    }];
+
+    console.log(fact_check_results[0]);
+
+    return fact_check_results;
 }

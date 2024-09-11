@@ -3,6 +3,7 @@ const axios = require("axios");
 const extractor = require("unfluff");
 const { OpenAI } = require("openai");
 const { zodResponseFormat } = require("openai/helpers/zod");
+const { getClaimSimilarities } = require("../claims/FactCheckDatabase");
 
 
 // Response object from OpenAI API call containing a claim review
@@ -16,7 +17,7 @@ const claimReviewObject = z.object({
 const searchForRelevantArticles = async (search_query, google_api_key, google_search_id) => {
     // Input parameters
     const black_listed_sources = [
-        'https://trumpwhitehouse.archives.gov',
+        "https://trumpwhitehouse.archives.gov",
     ];
 
     // Call Google Search API to find relevant article URLs to input claim
@@ -142,6 +143,9 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
 
 // Search for relevant articles and use to fact-check claim, using Google Search and an OpenAI model
 module.exports.searchAndReview = async (claim_text, google_api_key, google_search_id, openai_api_key) => {
+    // Parameters and variables
+    let generate_similarity_scores = true;
+
     // Send Google search query to find relevant articles on the web
     const contextual_articles = await searchForRelevantArticles(claim_text, google_api_key, google_search_id);
 
@@ -149,24 +153,26 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
     const openai = new OpenAI({ apiKey: openai_api_key });
 
     // Send claim & each article to OpenAI to fact-check the claim
-    let fact_check_results = [];
+    let fact_checked_claims = [];
 
     for (const article of contextual_articles) {
         const article_text = article.text;
         const article_url = new URL(article.url);
         const publisher_url_href = article_url.origin;
+        const publisher_name = article.publisher ?? "None";
 
         const fact_check = await reviewClaimAgainstArticle(claim_text, article_text, openai);
 
         // If fact-check generated, add to collection
-        if (fact_check.conclusion != 'None' && fact_check.article_subsection != 'None') {
-            const factCheckResult = {
+        if (fact_check.conclusion !== 'None' && fact_check.article_subsection !== 'None') {
+            const fact_check_result = {
                 factCheckMethod: "Search and review (Google & OpenAI)",
-                matchedClaimTitle: article.title,
-                matchedClaimSpeaker: 'None',
+                matchedClaim: article.title,
+                claimSimilarity: "None",
+                matchedClaimSpeaker: "None",
                 claimReview: [{
 					publisher: {
-						name: article.publisher,
+						name: publisher_name,
 						url: publisher_url_href
                     },
                     url: article_url.href,
@@ -177,9 +183,27 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                 }]
             }
 
-            fact_check_results.push(factCheckResult);
+            fact_checked_claims.push(fact_check_result);
         }
     }
 
-    return fact_check_results;
+    // Generate 'similarity score' between input claim and matched claims
+    if (generate_similarity_scores) {
+        // Get score
+        const matched_claims = fact_checked_claims.map(result => result.matchedClaim);
+        const claim_similarities = await getClaimSimilarities(claim_text, matched_claims, openai_api_key);
+
+        // Add score to claim object
+        if (claim_similarities.length === fact_checked_claims.length) {
+            fact_checked_claims = fact_checked_claims.map((result, index) => {
+                result.claimSimilarity = claim_similarities[index];
+                return result;
+            });
+        }
+
+        // Sort claims by score
+        fact_checked_claims.sort((result_1, result_2) => result_2.claimSimilarity - result_1.claimSimilarity);
+    }
+
+    return fact_checked_claims;
 }

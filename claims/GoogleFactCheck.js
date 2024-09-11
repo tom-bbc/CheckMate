@@ -1,12 +1,16 @@
 const axios = require("axios");
+const { getClaimSimilarities } = require("../claims/FactCheckDatabase");
 
 
-module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key) => {
+module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, openai_api_key) => {
     // Call Google Fact Check API to match input claim to known fact-checked claims
+    let generate_similarity_scores = true;
+    const claim_language = "en";
     const fact_check_api = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
 
     const params = {
         key: google_fact_check_api_key,
+        languageCode: claim_language,
         query: claim_text
     };
     let response;
@@ -25,16 +29,57 @@ module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key) =
         return [];
     }
 
+    // Generate 'similarity score' between input claim and matched claims
+    let fact_checked_claims = response['claims'];
+    let claim_similarities;
+
+    if (generate_similarity_scores) {
+        // Get score
+        const matched_claims = fact_checked_claims.map(result => result.text);
+        claim_similarities = await getClaimSimilarities(claim_text, matched_claims, openai_api_key);
+        generate_similarity_scores = claim_similarities.length === fact_checked_claims.length
+
+        // Add score to claim object
+        if (generate_similarity_scores) {
+            fact_checked_claims = fact_checked_claims.map((result, index) => {
+                result.similarity_score = claim_similarities[index];
+                return result;
+            });
+        }
+
+        // Sort claims by score
+        fact_checked_claims.sort((a, b) => b.similarity_score - a.similarity_score);
+    }
+
     // Extract relevant fact-check info from response and format into output data structure
-    let fact_check_results = response['claims'];
-    fact_check_results = fact_check_results.map(result => {
-        return {
+    const false_rating_terms = ["Pants on Fire"];
+    let fact_check_output = [];
+
+    for (const result of fact_checked_claims) {
+        // Replace vague fact-check results
+        result.claimReview = result.claimReview.map(review => {
+            if (false_rating_terms.includes(review.textualRating)) {
+                review.textualRating = "False";
+            }
+            return review;
+        })
+
+        // Output object of fact-check process per response to the claim
+        let fact_check_object = {
             factCheckMethod: "Google Fact Check",
-            matchedClaimTitle: result.text,
+            matchedClaim: result.text,
+            claimSimilarity: "None",
             matchedClaimSpeaker: result.claimant,
             claimReview: result.claimReview
-        }
-    });
+        };
 
-    return fact_check_results;
+        // Add associated similary score of matched claim
+        if (generate_similarity_scores) {
+            fact_check_object.claimSimilarity = result.similarity_score;
+        }
+
+        fact_check_output.push(fact_check_object);
+    }
+
+    return fact_check_output;
 };
