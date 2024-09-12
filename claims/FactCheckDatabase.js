@@ -91,8 +91,6 @@ module.exports.getClaimSimilarities = async (input_claim, claim_array, openai_ap
 
 // Search a proprietary database of known fact-checks for an input claim
 module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
-    // !! UPDATE: check if embedding already in table, use that if so, and if not compute one, use this, and push to table
-
     // Set up connection to OpenAI API embedding model
     let openai;
     try {
@@ -117,15 +115,13 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     let aws_table_data;
     try {
         aws_table_data = await dynamoScan(queryParams);
+        aws_table_data = aws_table_data.Items
     } catch (error) {
         console.log(`<!> ERROR: "${error.message}". Cannot connect to fact-check database. <!>`);
         return [];
     }
 
     // Get claim embeddings from database or generate via OpenAI
-    aws_table_data = aws_table_data.Items;
-    // console.log(aws_table_data);
-
     const regenerate_embeddings = false;
     let claim_embeddings = [];
 
@@ -134,11 +130,11 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
 
         if (!regenerate_embeddings && row.embedding && row.embedding.S !== '') {
             // Get embedding from database for this claim
-            console.log("Found claim with embedding:", row.claimID.S);
+            // console.log("Found claim with embedding:", row.claimID.S);
             embedding = JSON.parse(row.embedding.S);
         } else {
             // Generate new embedding
-            console.log("Generating embedding for claim:", row.claimID.S);
+            // console.log("Generating embedding for claim:", row.claimID.S);
             try {
                 embedding = await getEmbedding(row.claim.S, openai);
             } catch (error) {
@@ -168,7 +164,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
                 console.log(`<!> ERROR: "${error.message}". Cannot update fact-check database. <!>`);
                 return [];
             }
-            console.log("Update item: ", row);
+            console.log("Update table item with new embedding vector: ", row);
         }
 
         claim_embeddings.push(embedding);
@@ -181,11 +177,10 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
         console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
         return [];
     }
-    // console.log(input_embedding);
 
     // Generate similarity scores between input claim and all claims in database
     let similarity_scores = claim_embeddings.map(embedding => getEmbeddingSimilarity(input_embedding, embedding));
-    // console.log(similarity_scores);
+    console.log("Claim similarity scores: ", similarity_scores)
 
     // Match the input claim to database claim with maximum similarity score (above threshold)
     const match_threshold = 0.5;
@@ -198,7 +193,6 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
 
     const max_index = similarity_scores.indexOf(max_similarity);
     const matched_claim_id = aws_table_data[max_index].claimID;
-    // console.log(`Matched claim: ${matched_claim_id} (${max_similarity})`);
 
     // Retrive fact-check data associated with the matched claim from fact-check database
     queryParams = {
@@ -219,7 +213,6 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
         return [];
     }
     matched_claim_data = matched_claim_data.Items[0];
-    // console.log(matched_claim_data);
 
     // Format fact-check data into output data structure
     const article_url = new URL(matched_claim_data.url.S);
