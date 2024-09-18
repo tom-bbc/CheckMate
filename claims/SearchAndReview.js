@@ -31,7 +31,15 @@ const searchForRelevantArticles = async (search_query, google_api_key, google_se
         q: search_query
     };
 
-    let response = await axios.get(google_search_api, {params});
+    let response;
+    try {
+        response = await axios.get(google_search_api, {params});
+    } catch (error) {
+        console.error(
+            `<!> ERROR: "${error.message}". Google Search API call failed. <!>`
+          );
+          return [];
+    }
     response = response.data;
 
     if (Object.keys(response).length === 0) {
@@ -150,7 +158,13 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
     const contextual_articles = await searchForRelevantArticles(claim_text, google_api_key, google_search_id);
 
     // Setup OpenAI model connection
-    const openai = new OpenAI({ apiKey: openai_api_key });
+    let openai;
+    try {
+        openai = new OpenAI({ apiKey: openai_api_key });
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        return [];
+    }
 
     // Send claim & each article to OpenAI to fact-check the claim
     let fact_checked_claims = [];
@@ -159,7 +173,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
         const article_text = article.text;
         const article_url = new URL(article.url);
         const publisher_url_href = article_url.origin;
-        const publisher_name = article.publisher ?? "None";
+        const publisher_name = article.publisher ?? article_url.hostname.replace('www.', '');
 
         const fact_check = await reviewClaimAgainstArticle(claim_text, article_text, openai);
 

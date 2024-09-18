@@ -183,7 +183,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     console.log("Claim similarity scores: ", similarity_scores)
 
     // Match the input claim to database claim with maximum similarity score (above threshold)
-    const match_threshold = 0.5;
+    const match_threshold = 0.6;
     const max_similarity = Math.max(...similarity_scores);
 
     if (max_similarity < match_threshold) {
@@ -217,6 +217,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     // Format fact-check data into output data structure
     const article_url = new URL(matched_claim_data.url.S);
     const publisher_url_href = article_url.origin;
+    const publisher_name = article_url.hostname.replace('www.', '');
 
     const fact_check_results = [{
         factCheckMethod: "Fact check database",
@@ -225,7 +226,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
         matchedClaimSpeaker: matched_claim_data.speaker?.S,
         claimReview: [{
             publisher: {
-                name: "None",
+                name: publisher_name,
                 url: publisher_url_href
             },
             url: article_url.href,

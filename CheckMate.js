@@ -1,6 +1,7 @@
 const { sentenceClaimDetection, transcriptClaimDetection } = require('./claims/ClaimDetection');
 const { googleFactCheck } = require('./claims/GoogleFactCheck');
 const { searchAndReview } = require('./claims/SearchAndReview');
+const { factCheckDatabase } = require('./claims/FactCheckDatabase');
 
 
 module.exports.CheckMate = async (input_transcript, input_type, service, api_keys) => {
@@ -85,10 +86,14 @@ const checkSingleClaim = async (claim_text, fact_check_method, api_keys) => {
 
     // Send claim to either Google Fact Check API or use the Google search & OpenAI summary method
     if (fact_check_method.toLowerCase() === "any") {
-        fact_check_result = await googleFactCheck(claim_text, api_keys.google, api_keys.openai);
+        fact_check_result = await factCheckDatabase(claim_text, api_keys.openai);
 
         if (fact_check_result.length === 0) {
-            fact_check_result = await searchAndReview(claim_text, api_keys.google, api_keys.google_search_id, api_keys.openai);
+            fact_check_result = await googleFactCheck(claim_text, api_keys.google, api_keys.openai);
+
+            if (fact_check_result.length === 0) {
+                fact_check_result = await searchAndReview(claim_text, api_keys.google, api_keys.google_search_id, api_keys.openai);
+            }
         }
 
     } else if (fact_check_method.toLowerCase() === "google fact check") {
@@ -96,6 +101,9 @@ const checkSingleClaim = async (claim_text, fact_check_method, api_keys) => {
 
     } else if (fact_check_method.toLowerCase() === "search and review") {
         fact_check_result = await searchAndReview(claim_text, api_keys.google, api_keys.google_search_id, api_keys.openai);
+
+    } else if (fact_check_method.toLowerCase() === "fact check database") {
+        fact_check_result = await factCheckDatabase(claim_text, api_keys.openai);
     }
 
     return fact_check_result;

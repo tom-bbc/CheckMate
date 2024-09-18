@@ -3,8 +3,10 @@ const { getClaimSimilarities } = require("../claims/FactCheckDatabase");
 
 
 module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, openai_api_key) => {
-    // Call Google Fact Check API to match input claim to known fact-checked claims
+    // Parameters and variables
     let generate_similarity_scores = true;
+
+    // Call Google Fact Check API to match input claim to known fact-checked claims
     const claim_language = "en";
     const fact_check_api = "https://factchecktools.googleapis.com/v1alpha1/claims:search";
 
@@ -13,8 +15,8 @@ module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, o
         languageCode: claim_language,
         query: claim_text
     };
-    let response;
 
+    let response;
     try {
         response = await axios.get(fact_check_api, {params});
     } catch (error) {
@@ -48,7 +50,7 @@ module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, o
         }
 
         // Sort claims by score
-        fact_checked_claims.sort((a, b) => b.similarity_score - a.similarity_score);
+        fact_checked_claims.sort((result_1, result_2) => result_2.similarity_score - result_1.similarity_score);
     }
 
     // Extract relevant fact-check info from response and format into output data structure
@@ -56,11 +58,19 @@ module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, o
     let fact_check_output = [];
 
     for (const result of fact_checked_claims) {
-        // Replace vague fact-check results
+        // Format fact-check results
         result.claimReview = result.claimReview.map(review => {
+            // Replace vaguage ratings
             if (false_rating_terms.includes(review.textualRating)) {
                 review.textualRating = "False";
             }
+
+            // Replace null publishers
+            if (!review.publisher.name) {
+                const article_url = new URL(matched_claim_data.url.S);
+                review.publisher.name = article_url.hostname.replace('www.', '');
+            }
+
             return review;
         })
 
