@@ -4,6 +4,7 @@ const extractor = require("unfluff");
 const { OpenAI } = require("openai");
 const { zodResponseFormat } = require("openai/helpers/zod");
 const { getClaimSimilarities } = require("../claims/FactCheckDatabase");
+const {SearchServiceClient} = require('@google-cloud/discoveryengine').v1beta;
 
 
 // Response object from OpenAI API call containing a claim review
@@ -15,17 +16,16 @@ const claimReviewObject = z.object({
 
 // Gather relevant articles using Google Search API
 const searchForRelevantArticles = async (search_query, google_api_key, google_search_id) => {
-    // Input parameters
-    const black_listed_sources = [
-        "https://trumpwhitehouse.archives.gov",
-    ];
-
     // Call Google Search API to find relevant article URLs to input claim
+    const ui_language = "en";
+    const search_language = `lang_${ui_language}`;
     const num_search_results = 3;
     const google_search_api = "https://www.googleapis.com/customsearch/v1";
 
     const params = {
         num: num_search_results,
+        hl: ui_language,
+        lr: search_language,
         key: google_api_key,
         cx: google_search_id,
         q: search_query
@@ -37,44 +37,44 @@ const searchForRelevantArticles = async (search_query, google_api_key, google_se
     } catch (error) {
         console.error(
             `<!> ERROR: "${error.message}". Google Search API call failed. <!>`
-          );
-          return [];
+        );
+        return [];
     }
-    response = response.data;
+    // response = response.data;
+    console.log(response);
+    return [];
 
     if (Object.keys(response).length === 0) {
         return [];
     }
 
+    // Simultaneous requests
+    const article_responses = await axios.all(
+        response.items.map(search_result => axios.get(search_result.link).catch(error => console.log(`<!> ERROR: "${error.message}". Cannot get article at URL "${search_result.link}". <!>`)))
+    );
+    console.log(article_responses.map(resp => resp.status));
+
     // Extract article body text from found URLs
     let fact_check_articles = [];
-    for (const search_result of response.items) {
-        // Skip article if not correct format
-        if (search_result.fileFormat) {
+
+    for (const article of article_responses) {
+        // Skip erroneous article responses
+        if (article.status !== 200) {
             continue;
         }
 
-        // Skip article if from a blacklisted website
-        const article_url = search_result.link;
-        const is_blacklisted = black_listed_sources.map(source => article_url.includes(source));
-        if (is_blacklisted.includes(true)) {
-            continue;
-        }
-
-        // Extract content from webpage
-        let article;
+        // Extract content from article
+        let article_contents;
         try {
-            article = await axios.get(article_url);
+            article_contents = extractor(article.data);
         } catch (error) {
-            console.log(`<!> ERROR: "${error.message}". Cannot retrieve article at URL "${article_url}". <!>`);
+            console.log(`<!> ERROR: "${error.message}". Cannot extract article at URL "${article.config.url}". <!>`);
             continue;
         }
-
-        const article_contents = extractor(article.data);
 
         // Format article content into output data structure
         const article_info = {
-            url: article_url,
+            url: article.config.url,
             title: article_contents.title,
             date: article_contents.date,
             publisher: article_contents.publisher,
