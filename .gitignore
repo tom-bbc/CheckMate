@@ -9,3 +9,5 @@ node_modules
 .DS_Store
 detecting-scientific-claim
 test.js
+claims/newsFeedDatabase.json
+claims/newsFeedsRSS.json

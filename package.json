@@ -15,9 +15,11 @@
     "@aws-sdk/client-ssm": "^3.614.0",
     "axios": "^1.7.4",
     "compute-cosine-similarity": "^1.1.0",
+    "fast-xml-parser": "^4.5.0",
     "node-fetch": "^2.7.0",
     "npm": "^10.8.3",
     "openai": "^4.57.0",
+    "socks-proxy-agent": "^8.0.4",
     "unfluff": "^3.2.0",
     "util": "^0.12.5",
     "zod": "^3.23.8"

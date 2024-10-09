@@ -28,7 +28,7 @@ const getEmbedding = async (input_text, openai_connection) => {
 
 
 // Get the similarity score of two text strings using embeddings
-module.exports.getTextSimilarity = async (input_text_1, input_text_2, openai_api_key) => {
+const getTextSimilarity = async (input_text_1, input_text_2, openai_api_key) => {
     // Set up connection to OpenAI API embedding model
     let openai;
     try {
@@ -50,7 +50,7 @@ module.exports.getTextSimilarity = async (input_text_1, input_text_2, openai_api
 
 
 // Get the similarity score of two text strings using embeddings
-module.exports.getClaimSimilarities = async (input_claim, claim_array, openai_api_key) => {
+const getClaimSimilarities = async (input_claim, claim_array, openai_api_key) => {
     // Set up connection to OpenAI API embedding model
     let openai;
     try {
@@ -90,7 +90,7 @@ module.exports.getClaimSimilarities = async (input_claim, claim_array, openai_ap
 
 
 // Search a proprietary database of known fact-checks for an input claim
-module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
+const factCheckDatabase = async (input_claim, openai_api_key) => {
     // Set up connection to OpenAI API embedding model
     let openai;
     try {
@@ -240,4 +240,13 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     console.log(fact_check_results[0]);
 
     return fact_check_results;
+}
+
+
+module.exports = {
+    factCheckDatabase,
+    getEmbedding,
+    getEmbeddingSimilarity,
+    getClaimSimilarities,
+    getTextSimilarity
 }

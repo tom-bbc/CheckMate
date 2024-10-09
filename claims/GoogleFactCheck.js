@@ -4,7 +4,7 @@ const { getClaimSimilarities } = require("../claims/FactCheckDatabase");
 
 module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, openai_api_key) => {
     // Parameters and variables
-    let generate_similarity_scores = true;
+    let generate_similarity_scores = false;
 
     // Call Google Fact Check API to match input claim to known fact-checked claims
     const claim_language = "en";
@@ -89,6 +89,11 @@ module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, o
         }
 
         fact_check_output.push(fact_check_object);
+    }
+
+    // Constrict output to only top 3 sources
+    if (fact_checked_claims.length > 3) {
+        fact_checked_claims = fact_checked_claims.slice(0, 3);
     }
 
     return fact_check_output;

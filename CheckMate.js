@@ -92,7 +92,7 @@ const checkSingleClaim = async (claim_text, fact_check_method, api_keys) => {
             fact_check_result = await googleFactCheck(claim_text, api_keys.google, api_keys.openai);
 
             if (fact_check_result.length === 0) {
-                fact_check_result = await searchAndReview(claim_text, api_keys.google, api_keys.google_search_id, api_keys.openai);
+                fact_check_result = await searchAndReview(claim_text, api_keys.google, api_keys.google_search_id, api_keys.openai, api_keys.newscatcher);
             }
         }
 
@@ -100,7 +100,8 @@ const checkSingleClaim = async (claim_text, fact_check_method, api_keys) => {
         fact_check_result = await googleFactCheck(claim_text, api_keys.google, api_keys.openai);
 
     } else if (fact_check_method.toLowerCase() === "search and review") {
-        fact_check_result = await searchAndReview(claim_text, api_keys.google, api_keys.google_search_id, api_keys.openai);
+        console.log("Fact checking with Search & Review");
+        fact_check_result = await searchAndReview(claim_text, api_keys.google, api_keys.google_search_id, api_keys.openai, api_keys.newscatcher);
 
     } else if (fact_check_method.toLowerCase() === "fact check database") {
         fact_check_result = await factCheckDatabase(claim_text, api_keys.openai);
