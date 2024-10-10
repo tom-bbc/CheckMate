@@ -13,10 +13,16 @@ const claimsObject = z.object({
 module.exports.sentenceClaimDetection = async (sentence, context, openai_api_key) => {
   // Define prompt for OpenAI model to extract claims from a transcript sentence (with preceding context)
   const system_prompt = `
-        I will provide you with a single sentence from a transcript. If the sentence contains any factual claims, extract and return those claims in an array.
-        A claim is a factual statement that should be an exact quote from the transcript. Ensure to only include relevant and substantial claims that are verifiable and not opinion or sarcasm.
+        I will provide you with a single sentence from a transcript. Identify whether the sentence contains any factual claims, and extract them.
+
+        A claim is a checkable part of any sentence that's can be determined to be true or false by gathering evidence from an external source. There are many different types of claims, such as claims about quantities (e.g. "GDP has risen by 5%"), claims about cause and effect (e.g. "this policy leads to econimic growth"), or predictive claims about the future (e.g. "the economy will grow by 10%").
+
+        Identified claims should be an exact quote from the transcript. Ensure to only include relevant and substantial claims that are verifiable and not opinion or sarcasm.
+
         I will also provide a string of context containing the sentences preceeding the input sentence in the transcript. This context can be used to help identify claims in the input sentence.
+
         If the claim makes reference to someone or something (e.g. "he said"), search backwards in the context sentences to identify the subject being referenced (e.g. "Rishi Sunak"), and replace the reference within the claim with the named subject.
+
         You should respond with an array containing any extracted claims from the single input sentence. If no claims are found, return any empty array.
 
         Example 1:

@@ -180,7 +180,6 @@ const factCheckDatabase = async (input_claim, openai_api_key) => {
 
     // Generate similarity scores between input claim and all claims in database
     let similarity_scores = claim_embeddings.map(embedding => getEmbeddingSimilarity(input_embedding, embedding));
-    console.log("Claim similarity scores: ", similarity_scores)
 
     // Match the input claim to database claim with maximum similarity score (above threshold)
     const match_threshold = 0.6;

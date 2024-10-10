@@ -7,6 +7,30 @@ const { XMLParser } = require('fast-xml-parser');
 const { getEmbedding, getEmbeddingSimilarity } = require("./FactCheckDatabase");
 
 
+const PRIMARY_SOURCES = [
+    "bbc.co.uk",
+    "bbc.com",
+    "reuters.com",
+    "news.sky.com",
+    "channel4.com",
+    "itv.com",
+    "theguardian.com",
+    "thetimes.com",
+    "economist.com",
+    "uk.news.yahoo.com",
+    "independent.co.uk",
+    "ft.com",
+    "gov.uk",
+    "fullfact.org",
+    "factcheck.org",
+    "pbs.org",
+    "wsj.com",
+    "abcnews.go.com",
+    "apnews.com",
+    "cbsnews.com"
+];
+
+
 module.exports.searchAndReview = async (claim_text, google_api_key, google_search_id, openai_api_key, newscatcher_api_key) => {
     /**
      * Search for relevant articles and use to fact-check claim, using Google Search and an OpenAI model
@@ -15,11 +39,6 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
     const search_engine = "newscatcher";
     const generate_similarity_scores = true;
     const article_similarity_threshold = 40;
-
-    // Ensure permitted search engine is being used
-    if (!["google", "newscatcher"].includes(search_engine)) {
-        return [];
-    }
 
     // Setup OpenAI model connection
     let openai;
@@ -40,17 +59,18 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
 
     if (search_engine === "google") {
         // Find contextual article URLs for input claim using Google Search API
-        console.log(`\nSearching Google Search API for claim ("${claim_text}")`);
         const response_articles = await searchGoogle(claim_text, google_api_key, google_search_id);
 
         // Get contents/body of found relevant articles
         contextual_articles = await getArticleContents(response_articles);
-        console.log(`Found ${contextual_articles.length} articles from Google Search API`);
+        console.log(`\nGoogle Search API: found ${contextual_articles.length} articles (claim: "${claim_text}")`);
     } else if (search_engine === "newscatcher") {
         // Find contextual article URLs and their contents using NewsCatcher API
-        console.log(`\nSearching NewsCatcher API for claim ("${claim_text}")`);
         contextual_articles = await searchNewsCatcher(claim_text, newscatcher_api_key);
-        console.log(`Found ${contextual_articles.length} articles from NewsCatcher API`);
+        console.log(`\nNewsCatcher API: found ${contextual_articles.length} articles (claim: "${claim_text}")`);
+    } else {
+        console.log("Invalid search engine chosen for Search & Review process.");
+        return [];
     }
 
     // If articles found through Google Search/NewsCatcher, review their contents using OpenAI model to fact-check the claim
@@ -97,9 +117,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
             }
 
             // Constrict output to only return relevant articles
-            if (fact_check_result.claimSimilarity === 'None' || fact_check_result.claimSimilarity > article_similarity_threshold) {
-                fact_checked_claims.push(fact_check_result);
-            }
+            fact_checked_claims.push(fact_check_result);
 
             console.log(`\n * Fact-check source: '${article.publisher}' - Claim rating: '${fact_check.summary}' - Similarity score: ${fact_check_result.claimSimilarity}`);
         }
@@ -108,9 +126,8 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
     // If no relevant articles found using Google Search / NewsCatcher, also check the Google News RSS feed
     if (fact_checked_claims.length === 0) {
         // Fetch contextual article URLs to input claim using Google News RSS feed
-        console.log(`\nSearching Google News feed for claim ("${claim_text}")`);
         const response_articles = await searchGoogleNews(claim_text);
-        console.log(`Found ${response_articles.length} articles in Google News feed`);
+        console.log(`\nGoogle News RSS Feed: found ${response_articles.length} articles (claim: "${claim_text}")`);
 
         // Send claim & each article to OpenAI to fact-check the claim
         for (const article of response_articles) {
@@ -220,26 +237,6 @@ const searchGoogleNews = async (input_claim) => {
      * https://www.newscatcherapi.com/blog/google-news-rss-search-parameters-the-missing-documentaiton#toc-8
      */
     // Parameters and variables
-    const permitted_sources = [
-        "BBC",
-        "Sky",
-        "The Guardian",
-        "Reuters",
-        "FactCheck",
-        "FullFact",
-        "Independent",
-        "The Guardian",
-        "The Times",
-        "Forbes",
-        "AP News",
-        "ABC News",
-        "CBS News",
-        "Washington Post",
-        "NY Times"
-    ];
-
-    // "Telegraph", "New Yorker", "WSJ", "The Verge", "CNN", "Rolling Stone"
-
     const restrict_sources = true;
     const restrict_date = false;
 
@@ -251,7 +248,7 @@ const searchGoogleNews = async (input_claim) => {
     const time_threshold = '1m';
 
     // Format search request with parameters (query / date / sources)
-    const search_query = input_claim.replaceAll(' ', '+');
+    const search_query = input_claim.replace(/\.$/, "").replaceAll(' ', '+AND+');
     let query_url = news_search_url + `?${lang_params}&q=${search_query}`
 
     if (restrict_date) {
@@ -259,12 +256,12 @@ const searchGoogleNews = async (input_claim) => {
     }
 
     if (restrict_sources) {
-        for (let index = 0; index < permitted_sources.length; index++) {
-            let source_name = permitted_sources[index];
+        for (let index = 0; index < PRIMARY_SOURCES.length; index++) {
+            let source_name = PRIMARY_SOURCES[index];
             source_name = source_name.toLowerCase();
             source_name = source_name.replaceAll(' ', '');
 
-            let new_source_code = `+inurl:${source_name}`;
+            let new_source_code = `+inurl:"${source_name}"`;
             if (index !== 0) {
                 new_source_code = '+OR' + new_source_code;
             }
@@ -305,7 +302,7 @@ const searchGoogleNews = async (input_claim) => {
 
     if (typeof feed_data === 'undefined') {
         console.error(
-            `<!> ERROR. No articles returned by Google News. <!>`
+            `<!> No articles returned by Google News. <!>`
         );
         return [];
     }
@@ -339,27 +336,6 @@ const searchNewsCatcher = async (input_claim, newscatcher_api_key) => {
      * Search NewsCatcher API for article URLs and content relating to a claim
      * https://docs.newscatcherapi.com/api-docs/endpoints-1/search-news
      */
-    const permitted_sources = [
-        "bbc.co.uk",
-        "bbc.com",
-        "theguardian.com",
-        "news.sky.com",
-        "channel4.com",
-        "www.itv.com",
-        "reuters.com",
-        "independent.co.uk",
-        "ft.com",
-        "thetimes.com",
-        "economist.com",
-        "fullfact.org",
-        "factcheck.org",
-        "pbs.org",
-        "cbsnews.com",
-        "abcnews.go.com",
-        "wsj.com",
-        "apnews.com",
-    ];
-
     const news_search_url = "https://v3-api.newscatcherapi.com/api/search";
 
     const config = {
@@ -369,7 +345,7 @@ const searchNewsCatcher = async (input_claim, newscatcher_api_key) => {
         params: {
             q: input_claim,
             page_size: 5,
-            sources: permitted_sources.join(','),
+            sources: PRIMARY_SOURCES.join(','),
             search_in: 'title,content',
         },
     }
