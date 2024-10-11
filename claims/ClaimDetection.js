@@ -15,7 +15,7 @@ module.exports.sentenceClaimDetection = async (sentence, context, openai_api_key
   const system_prompt = `
         I will provide you with a single sentence from a transcript. Identify whether the sentence contains any factual claims, and extract them.
 
-        A claim is a checkable part of any sentence that's can be determined to be true or false by gathering evidence from an external source. There are many different types of claims, such as claims about quantities (e.g. "GDP has risen by 5%"), claims about cause and effect (e.g. "this policy leads to econimic growth"), or predictive claims about the future (e.g. "the economy will grow by 10%").
+        A claim is a factual part of a sentence that can be fact checked to determine it to be true or false by gathering evidence from an external source. There are many different types of claims: claims about quantities (e.g. "GDP has risen by 5%"), claims about cause and effect (e.g. "this policy leads to econimic growth"), historical claims (e.g. "the prime minister cut the education budget by £5bn in 2023"), or predictive claims about the future (e.g. "economists say this will cost working people $100 more per year").
 
         Identified claims should be an exact quote from the transcript. Ensure to only include relevant and substantial claims that are verifiable and not opinion or sarcasm.
 
@@ -63,7 +63,7 @@ module.exports.sentenceClaimDetection = async (sentence, context, openai_api_key
         { role: "system", content: system_prompt },
         { role: "user", content: user_prompt },
       ],
-      model: "gpt-4o-2024-08-06",
+      model: "gpt-4o",
       response_format: zodResponseFormat(claimsObject, "claims"),
     });
   } catch (error) {
@@ -122,7 +122,7 @@ module.exports.transcriptClaimDetection = async (transcript, openai_api_key) => 
         { role: "system", content: system_prompt },
         { role: "user", content: user_prompt },
       ],
-      model: "gpt-4o-2024-08-06",
+      model: "gpt-4o",
       response_format: zodResponseFormat(claimsObject, "claims"),
     });
   } catch (error) {

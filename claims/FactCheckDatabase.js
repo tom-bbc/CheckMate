@@ -27,6 +27,21 @@ const getEmbedding = async (input_text, openai_connection) => {
 }
 
 
+// Generate multiple embedding vectors of multiple text strings
+const getMultipleEmbeddings = async (input_text_array, openai_connection) => {
+    let embeddings = await openai_connection.embeddings.create({
+        model: "text-embedding-3-small",
+        input: input_text_array,
+        encoding_format: "float",
+        dimensions: 256
+    });
+
+    embeddings = embeddings.data.map(resp_object => resp_object.embedding);
+
+    return embeddings;
+}
+
+
 // Get the similarity score of two text strings using embeddings
 const getTextSimilarity = async (input_text_1, input_text_2, openai_api_key) => {
     // Set up connection to OpenAI API embedding model
@@ -245,6 +260,7 @@ const factCheckDatabase = async (input_claim, openai_api_key) => {
 module.exports = {
     factCheckDatabase,
     getEmbedding,
+    getMultipleEmbeddings,
     getEmbeddingSimilarity,
     getClaimSimilarities,
     getTextSimilarity
