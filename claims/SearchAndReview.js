@@ -3,8 +3,9 @@ const axios = require("axios");
 const extractor = require("unfluff");
 const { OpenAI } = require("openai");
 const { zodResponseFormat } = require("openai/helpers/zod");
-const { getEmbedding, getMultipleEmbeddings, getEmbeddingSimilarity } = require("./FactCheckDatabase");
+const { getEmbedding, getMultipleEmbeddings, getEmbeddingSimilarity } = require("./embeddings");
 const { XMLParser } = require('fast-xml-parser');
+const { JSDOM } = require('jsdom');
 
 
 // List of supported sources to find fact-check articles
@@ -48,28 +49,23 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
     const article_similarity_threshold = 40;
     console.log(`\nDetected claim: "${claim_text}".`);
 
-    /**
-    const response_articles = await searchGoogle(claim_text, google_api_key, google_search_id);
-    contextual_articles = await getArticleContents(response_articles);
-    */
-
-    // Send search query to find contextual article URLs and their contents using NewsCatcher API
+    // NewsCatcher API: send search query to find contextual article URLs and their contents
     let contextual_articles = await searchNewsCatcher(claim_text, newscatcher_api_key);
     console.log(`\nNewsCatcher API: found ${contextual_articles.length} articles.`);
 
-    // Generate similarity scores between claim and matched fact-check articles
+    // Setup OpenAI model connection
     let openai;
+    try {
+        openai = new OpenAI({ apiKey: openai_api_key });
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        return [];
+    }
+
+    // Generate similarity scores between claim and matched fact-check articles
     let claim_embedding;
     let similarity_scores;
     if (generate_similarity_scores) {
-        // Setup OpenAI model connection
-        try {
-            openai = new OpenAI({ apiKey: openai_api_key });
-        } catch (error) {
-            console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
-            return [];
-        }
-
         // Get embedding of input claim to facilitate generation of similarity scores
         claim_embedding = await getEmbedding(claim_text, openai);
 
@@ -83,7 +79,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
         }
     }
 
-    // If articles found during search, review their contents using OpenAI model to fact-check the claim
+    // NewsCatcher API: review contents of found articles using OpenAI model & fact-check the claim
     let fact_checked_claims = [];
 
     for (let index = 0; index < contextual_articles.length; index++) {
@@ -93,14 +89,16 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
 
         const fact_check = await reviewClaimAgainstArticle(claim_text, article_text, openai);
 
-        // If fact-check generated, add to collection
+        // If fact-checked, add to collection
         if (fact_check.summary !== 'None' || fact_check.article_section !== 'None') {
             const publisher_url_href = article_url.origin;
             const publisher_name = article.publisher ?? article_url.hostname.replace('www.', '');
-            const relevant_article_section = fact_check.article_section.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '');
+
+            // const relevant_article_section = fact_check.article_section.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '');
+            // reviewArticleExtract: relevant_article_section
 
             let fact_check_result = {
-                factCheckMethod: "Search and review (NewsCatcher & OpenAI)",
+                factCheckMethod: "Search & Review (NewsCatcher & OpenAI)",
                 matchedClaim: article.title,
                 claimSimilarity: "None",
                 matchedClaimSpeaker: fact_check.speaker,
@@ -112,8 +110,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                     url: article_url.href,
                     title: article.title,
                     textualRating: fact_check.summary,
-                    languageCode: article.lang,
-                    reviewArticleExtract: relevant_article_section,
+                    languageCode: article.lang
                 }]
             }
 
@@ -128,10 +125,10 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
         }
     }
 
-    // If no relevant articles found using Google Search / NewsCatcher, also check the Google News RSS feed
+    // Google News feed: if no relevant articles found using NewsCatcher, also check the Google News RSS feed
     if (fact_checked_claims.length === 0) {
         // Fetch contextual article URLs to input claim using Google News RSS feed
-        const response_articles = await searchGoogleNews(claim_text);
+        let response_articles = await searchGoogleNews(claim_text);
         console.log(`\nGoogle News RSS Feed: found ${response_articles.length} articles.`);
 
         // Generate similarity scores between claim and matched fact-check articles
@@ -141,39 +138,68 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
             const article_embeddings = await getMultipleEmbeddings(article_descriptions, openai);
 
             // Compute similarity score between claim and article
-            similarity_scores = article_embeddings.map(embedding => Number((100 * getEmbeddingSimilarity(claim_embedding, embedding)).toFixed(2)));
+            similarity_scores = article_embeddings.map(embedding => {
+                return Number((100 * getEmbeddingSimilarity(claim_embedding, embedding)).toFixed(2))
+            });
+
+            // Add similarity scores to articles
+            response_articles = response_articles.map((article, index) => {
+                article.similarity = similarity_scores[index];
+                return article;
+            });
+
+            // Only use top 3 articles from feed
+            if (response_articles.length > 3) {
+                response_articles.sort((article_1, article_2) => article_2.claimSimilarity - article_1.claimSimilarity);
+                response_articles = response_articles.slice(0, 3);
+            }
         }
 
         // Format claim & article as fact-check object
-        for (let index = 0; index < response_articles.length; index++) {
-            // Format fact-check object
-            const article = response_articles[index];
+        for (const article of response_articles) {
+            // Extract news article URL from Google News source
+            let decoded_article_source = await decodeGoogleNewsURL(article.url);
 
+            // Get contents of news article and enact review process
+            let matched_claim_speaker = "None";
+            let textual_rating = "None";
+            let review_article_extract = "None";
+
+            if (decoded_article_source.status) {
+                // Get article contents using source URL
+                const article_contents = await getArticleContents(decoded_article_source.url);
+
+                // Review contents of articles found during search using OpenAI model
+                if (article_contents.status) {
+                    const fact_check = await reviewClaimAgainstArticle(claim_text, article_contents.text, openai);
+                    matched_claim_speaker = fact_check.speaker;
+                    textual_rating = fact_check.summary;
+                    review_article_extract = fact_check.article_section.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '');
+                }
+            }
+
+            // Format fact-check object
+            // reviewArticleExtract: review_article_extract
             let fact_check_result = {
-                factCheckMethod: "Search and review (Google News)",
+                factCheckMethod: "Search & Review (Google News)",
                 matchedClaim: article.title,
-                claimSimilarity: "None",
-                matchedClaimSpeaker: "None",
+                claimSimilarity: article.similarity ?? "None",
+                matchedClaimSpeaker: matched_claim_speaker,
                 claimReview: [{
                     publisher: article.publisher,
-                    url: article.url,
+                    url: decoded_article_source.url ?? article.url,
                     title: article.title,
-                    textualRating: "None",
-                    languageCode: "en",
-                    reviewArticleExtract: "None",
+                    textualRating: textual_rating,
+                    languageCode: "en"
                 }]
             }
 
-            // Add similarity score between claim and matched article
-            if (generate_similarity_scores) {
-                fact_check_result.claimSimilarity = similarity_scores[index];
-            }
-
             // Constrict output to only return relevant articles
-            if (fact_check_result.claimSimilarity === 'None' || fact_check_result.claimSimilarity > article_similarity_threshold) {
+            if (textual_rating !== 'None' || fact_check_result.claimSimilarity === 'None' || fact_check_result.claimSimilarity > article_similarity_threshold) {
                 fact_checked_claims.push(fact_check_result);
             }
-            console.log(`\n * Fact-check source: '${article.publisher.name}' - Claim rating: '${article.title}' - Similarity score: ${fact_check_result.claimSimilarity}`);
+
+            console.log(`\n * Fact-check source: '${article.publisher.name}' - Claim rating: '${textual_rating !== "None" ? textual_rating : article.title}' - Similarity score: ${fact_check_result.claimSimilarity}`);
         }
     }
 
@@ -229,9 +255,6 @@ const searchNewsCatcher = async (input_claim, newscatcher_api_key) => {
     }
 
     if (Object.keys(response.data).length === 0) {
-        console.error(
-            `<!> No articles returned by NewsCatcher. <!>`
-        );
         return [];
     }
 
@@ -296,8 +319,6 @@ const searchGoogleNews = async (input_claim) => {
         }
     }
 
-    console.log(`\nGoogle News search query: ${query_url}`);
-
     // Send request to Google News and get response
     let response = [];
     try {
@@ -317,9 +338,6 @@ const searchGoogleNews = async (input_claim) => {
     }
 
     if (Object.keys(response.data).length === 0) {
-        console.error(
-            `<!> No articles returned by Google News. <!>`
-        );
         return [];
     }
 
@@ -364,6 +382,170 @@ const searchGoogleNews = async (input_claim) => {
     });
 
     return output_article_data;
+}
+
+const decodeGoogleNewsURL = async (input_url) => {
+    // Get base64 string
+    const url = new URL(input_url);
+    const path = url.pathname.split('/');
+
+    let base64Str;
+    if (url.hostname === 'news.google.com' && path.length > 1 && ['articles', 'read'].includes(path[path.length - 2])) {
+        base64Str = path[path.length - 1];
+    } else {
+        console.log("Error in getting base64 string from the the URL");
+        return {
+            status: false
+        };
+    }
+
+    // Get decoding parameters
+    const decoding_article_url = `https://news.google.com/rss/articles/${base64Str}`;
+    let decodingTimestamp;
+    let decodingSignature;
+
+    try {
+        const response = await axios.get(decoding_article_url);
+        const dom = new JSDOM(response.data);
+        const dataElement = dom.window.document.querySelector('c-wiz > div[jscontroller]');
+        if (dataElement) {
+            decodingTimestamp = dataElement.getAttribute('data-n-a-ts');
+            decodingSignature = dataElement.getAttribute('data-n-a-sg');
+        } else {
+            console.error(
+                `<!> ERROR. Decoding article URL from Google News failed. <!>`
+            );
+            return {
+                status: false
+            };
+        }
+    } catch (error) {
+        console.error(
+            `<!> ERROR: "${error.message}". Decoding article URL from Google News failed. <!>`
+        );
+        return {
+            status: false
+        };
+    }
+
+    // Decode URL
+    const batch_execute_url = 'https://news.google.com/_/DotsSplashUi/data/batchexecute';
+    const payload = [
+        'Fbv4je',
+        `["garturlreq", [["X", "X", ["X", "X"], null, null, 1, 1, "US:en", null, 1, null, null, null, null, null, 0, 1], "X", "X", 1, [1, 1, 1], 1, 1, null, 0, 0, null, 0], "${base64Str}", ${decodingTimestamp}, "${decodingSignature}"]`
+    ];
+    const headers = {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
+    };
+
+    let decoded_url;
+    try {
+        const response = await axios.post(batch_execute_url, `f.req=${encodeURIComponent(JSON.stringify([[payload]]))}`, { headers });
+        const data = response.data.split('\n\n')[1];
+        const parsedData = JSON.parse(data)[0][2];
+        decoded_url = JSON.parse(parsedData)[1];
+    } catch (error) {
+        console.error(
+            `<!> ERROR: "${error.message}". Decoding article URL from Google News failed. <!>`
+        );        return {
+            status: false
+        };
+    }
+
+    return {
+        status: true,
+        url: decoded_url
+    };
+}
+
+
+const searchGoogle = async (input_claim, google_api_key, google_search_id) => {
+    /**
+     * Search Google for article URLs relating to a claim
+     */
+    // Parameters & variables
+    const ui_language = "en";
+    const search_language = `lang_${ui_language}`;
+    const num_search_results = 5;
+    const google_search_api = "https://www.googleapis.com/customsearch/v1";
+
+    const params = {
+        num: num_search_results,
+        hl: ui_language,
+        lr: search_language,
+        key: google_api_key,
+        cx: google_search_id,
+        q: input_claim
+    };
+
+    // Send request to Google Search API and get response
+    let response = [];
+
+    try {
+        response = await axios.get(google_search_api, {params});
+    } catch (error) {
+        console.error(
+            `<!> ERROR: "${error.message}". Google Search API call failed. <!>`
+        );
+        return [];
+    }
+
+    if (response.status !== 200) {
+        console.error(
+            `<!> ERROR: "${response.status}". Google Search API call failed. <!>`
+        );
+        return [];
+    }
+
+    if (Object.keys(response.data).length === 0) {
+        return [];
+    }
+
+    // Parse response to get top article links
+    let output_article_links = response.data.items.map(search_result => search_result.link);
+
+    return output_article_links;
+}
+
+
+const getArticleContents = async (article_url) => {
+    /**
+     * Extract contents of an article given its URL
+     */
+    // Retrieve article contents from webpage URL
+    let response;
+    try {
+        response = await axios.get(article_url);
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot get article at URL "${article_url}". <!>`);
+        return {
+            status: false
+        };
+    }
+
+    // Skip erroneous article responses
+    if (typeof response === 'undefined' || response.status !== 200) {
+        return {
+            status: false
+        };
+    }
+
+    // Extract contents from article
+    let article_contents;
+    try {
+        article_contents = extractor(response.data);
+    } catch (error) {
+        console.log(`<!> ERROR: "${error.message}". Cannot extract article at URL "${article.config.url}". <!>`);
+        return {
+            status: false
+        };
+    }
+
+    return {
+        status: true,
+        text: article_contents.text
+    };
 }
 
 
@@ -430,101 +612,4 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
     } else {
         return claim_review;
     }
-}
-
-
-const searchGoogle = async (input_claim, google_api_key, google_search_id) => {
-    /**
-     * Search Google for article URLs relating to a claim
-     */
-    // Parameters & variables
-    const ui_language = "en";
-    const search_language = `lang_${ui_language}`;
-    const num_search_results = 5;
-    const google_search_api = "https://www.googleapis.com/customsearch/v1";
-
-    const params = {
-        num: num_search_results,
-        hl: ui_language,
-        lr: search_language,
-        key: google_api_key,
-        cx: google_search_id,
-        q: input_claim
-    };
-
-    // Send request to Google Search API and get response
-    let response = [];
-
-    try {
-        response = await axios.get(google_search_api, {params});
-    } catch (error) {
-        console.error(
-            `<!> ERROR: "${error.message}". Google Search API call failed. <!>`
-        );
-        return [];
-    }
-
-    if (response.status !== 200) {
-        console.error(
-            `<!> ERROR: "${response.status}". Google Search API call failed. <!>`
-        );
-        return [];
-    }
-
-    if (Object.keys(response.data).length === 0) {
-        console.error(
-            `<!> No articles returned by Google Search. <!>`
-        );
-        return [];
-    }
-
-    // Parse response to get top article links
-    let output_article_links = response.data.items.map(search_result => search_result.link);
-
-    return output_article_links;
-}
-
-
-const getArticleContents = async (article_links) => {
-    /**
-     * Extract contents of an article given its URL
-     */
-    // Retrieve article contents from webpage URLs
-    const article_contents_responses = await axios.all(
-        article_links.map(search_result => axios.get(search_result, { maxRedirects: 10 }).catch(error => console.log(`<!> ERROR: "${error.message}". Cannot get article at URL "${search_result.link}". <!>`)))
-    );
-
-    // Extract article contents as plaintext into object
-    let fact_check_articles = [];
-
-    for (const article of article_contents_responses) {
-        // Skip erroneous article responses
-        if (typeof article === 'undefined' || article.status !== 200) {
-            continue;
-        }
-
-        // Extract content from article
-        let article_contents;
-        try {
-            article_contents = extractor(article.data);
-        } catch (error) {
-            console.log(`<!> ERROR: "${error.message}". Cannot extract article at URL "${article.config.url}". <!>`);
-            continue;
-        }
-
-        // Format article content into output data structure
-        const article_info = {
-            url: article.config.url,
-            title: article_contents.title,
-            date: article_contents.date,
-            publisher: article_contents.publisher,
-            lang: article_contents.lang,
-            description: article_contents.description,
-            text: article_contents.text
-        };
-
-        fact_check_articles.push(article_info);
-    }
-
-    return fact_check_articles;
 }

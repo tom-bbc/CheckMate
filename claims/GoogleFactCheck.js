@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { getClaimSimilarities } = require("../claims/FactCheckDatabase");
+const { getClaimSimilarities } = require("./embeddings");
 
 
 module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, openai_api_key) => {
@@ -33,36 +33,47 @@ module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, o
 
     // Generate 'similarity score' between input claim and matched claims
     let fact_checked_claims = response['claims'];
-    let claim_similarities;
 
     if (generate_similarity_scores) {
         // Get score
         const matched_claims = fact_checked_claims.map(result => result.text);
-        claim_similarities = await getClaimSimilarities(claim_text, matched_claims, openai_api_key);
-        generate_similarity_scores = claim_similarities.length === fact_checked_claims.length
+
+        const claim_similarities = await getClaimSimilarities(claim_text, matched_claims, openai_api_key);
 
         // Add score to claim object
-        if (generate_similarity_scores) {
-            fact_checked_claims = fact_checked_claims.map((result, index) => {
-                result.similarity_score = claim_similarities[index];
-                return result;
-            });
-        }
+        fact_checked_claims = fact_checked_claims.map((result, index) => {
+            result.similarity_score = claim_similarities[index];
+            return result;
+        });
 
         // Sort claims by score
         fact_checked_claims.sort((result_1, result_2) => result_2.similarity_score - result_1.similarity_score);
     }
 
+    // Constrict output to only top 3 sources
+    if (fact_checked_claims.length > 3) {
+        fact_checked_claims = fact_checked_claims.slice(0, 3);
+    }
+
     // Extract relevant fact-check info from response and format into output data structure
-    const false_rating_terms = ["Pants on Fire"];
+    const rating_terms_mapping = {
+        "Pants on Fire": "False",
+        "One Pinocchio": "Mostly true: some omissions and exaggerations, but no outright falsehoods.",
+        "Two Pinocchios": "Half true: significant omissions and/or exaggerations.",
+        "Three Pinocchios": "Mostly false: significant factual error and/or obvious contradictions.",
+        "Four Pinocchios": "False",
+        "Geppetto Checkmark": "True",
+        "Verdict Pending": "Verdict pending: judgement cannot be fully rendered"
+    }
+
     let fact_check_output = [];
 
     for (const result of fact_checked_claims) {
         // Format fact-check results
         result.claimReview = result.claimReview.map(review => {
             // Replace vaguage ratings
-            if (false_rating_terms.includes(review.textualRating)) {
-                review.textualRating = "False";
+            if (rating_terms_mapping.hasOwnProperty(review.textualRating)) {
+                review.textualRating = rating_terms_mapping[review.textualRating];
             }
 
             // Replace null publishers

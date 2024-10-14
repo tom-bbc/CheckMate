@@ -1,6 +1,6 @@
 const { OpenAI } = require("openai");
 const { dynamoScan, dynamoQuery, dynamoUpdate } = require("../helper/dynamo");
-const getEmbeddingSimilarity = require("compute-cosine-similarity");
+const { getEmbedding, getEmbeddingSimilarity, } = require('./embeddings');
 
 
 const process = {
@@ -10,102 +10,8 @@ const process = {
 }
 
 
-// Generate a single embedding vector of a text string
-const getEmbedding = async (input_text, openai_connection) => {
-    input_text = input_text.replace("\n", " ");
-
-    let embedding = await openai_connection.embeddings.create({
-        model: "text-embedding-3-small",
-        input: input_text,
-        encoding_format: "float",
-        dimensions: 256
-    });
-
-    embedding = embedding.data[0].embedding;
-
-    return embedding;
-}
-
-
-// Generate multiple embedding vectors of multiple text strings
-const getMultipleEmbeddings = async (input_text_array, openai_connection) => {
-    let embeddings = await openai_connection.embeddings.create({
-        model: "text-embedding-3-small",
-        input: input_text_array,
-        encoding_format: "float",
-        dimensions: 256
-    });
-
-    embeddings = embeddings.data.map(resp_object => resp_object.embedding);
-
-    return embeddings;
-}
-
-
-// Get the similarity score of two text strings using embeddings
-const getTextSimilarity = async (input_text_1, input_text_2, openai_api_key) => {
-    // Set up connection to OpenAI API embedding model
-    let openai;
-    try {
-        openai = new OpenAI({ apiKey: openai_api_key });
-    } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
-        return 0;
-    }
-
-    // Get embedding vectors
-    let embedding_1 = await getEmbedding(input_text_1, openai);
-    let embedding_2 = await getEmbedding(input_text_2, openai);
-
-    // Calculate similarity
-    let similarity_score = getEmbeddingSimilarity(embedding_1, embedding_2);
-
-    return similarity_score;
-}
-
-
-// Get the similarity score of two text strings using embeddings
-const getClaimSimilarities = async (input_claim, claim_array, openai_api_key) => {
-    // Set up connection to OpenAI API embedding model
-    let openai;
-    try {
-        openai = new OpenAI({ apiKey: openai_api_key });
-    } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
-        return [];
-    }
-
-    // Generate embedding for the input claim
-    let input_embedding;
-    try {
-        input_embedding = await getEmbedding(input_claim, openai);
-    } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
-        return [];
-    }
-
-    // Generate embedding for each claim in array
-    let claim_embeddings = [];
-    for (const claim of claim_array) {
-        try {
-            let embedding = await getEmbedding(claim, openai);
-            claim_embeddings.push(embedding);
-        } catch (error) {
-            console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
-            claim_embeddings.push(0.5);
-        }
-    }
-
-    // Generate similarity scores between input claim and all claims in array
-    let similarity_scores = claim_embeddings.map(embedding => getEmbeddingSimilarity(input_embedding, embedding));
-    similarity_scores = similarity_scores.map(score => Number((100 * score).toFixed(2)));
-
-    return similarity_scores;
-}
-
-
 // Search a proprietary database of known fact-checks for an input claim
-const factCheckDatabase = async (input_claim, openai_api_key) => {
+module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     // Set up connection to OpenAI API embedding model
     let openai;
     try {
@@ -233,6 +139,7 @@ const factCheckDatabase = async (input_claim, openai_api_key) => {
     const publisher_url_href = article_url.origin;
     const publisher_name = article_url.hostname.replace('www.', '');
 
+    // reviewArticleExtract: "None"
     const fact_check_results = [{
         factCheckMethod: "Fact check database",
         matchedClaim: matched_claim_data.claim?.S,
@@ -246,22 +153,11 @@ const factCheckDatabase = async (input_claim, openai_api_key) => {
             url: article_url.href,
             title: matched_claim_data.title?.S,
             textualRating: matched_claim_data.textualRating?.S,
-            languageCode: matched_claim_data.languageCode?.S,
-            reviewArticleExtract: "None",
+            languageCode: matched_claim_data.languageCode?.S
         }]
     }];
 
     console.log(fact_check_results[0]);
 
     return fact_check_results;
-}
-
-
-module.exports = {
-    factCheckDatabase,
-    getEmbedding,
-    getMultipleEmbeddings,
-    getEmbeddingSimilarity,
-    getClaimSimilarities,
-    getTextSimilarity
 }
