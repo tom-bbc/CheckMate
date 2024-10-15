@@ -148,7 +148,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
         claimReview: [{
             publisher: {
                 name: publisher_name,
-                url: publisher_url_href
+                site: publisher_url_href
             },
             url: article_url.href,
             title: matched_claim_data.title?.S,

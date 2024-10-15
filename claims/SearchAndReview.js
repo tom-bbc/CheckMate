@@ -105,7 +105,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                 claimReview: [{
                     publisher: {
                         name: publisher_name,
-                        url: publisher_url_href
+                        site: publisher_url_href
                     },
                     url: article_url.href,
                     title: article.title,
@@ -163,7 +163,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
             // Get contents of news article and enact review process
             let matched_claim_speaker = "None";
             let textual_rating = "None";
-            let review_article_extract = "None";
+            // let review_article_extract = "None";
 
             if (decoded_article_source.status) {
                 // Get article contents using source URL
@@ -174,7 +174,8 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                     const fact_check = await reviewClaimAgainstArticle(claim_text, article_contents.text, openai);
                     matched_claim_speaker = fact_check.speaker;
                     textual_rating = fact_check.summary;
-                    review_article_extract = fact_check.article_section.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '');
+                    console.log(`Article reviewed for fact-check => speaker: ${textual_rating}, rating ${matched_claim_speaker}`);
+                    // review_article_extract = fact_check.article_section.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '');
                 }
             }
 
@@ -375,7 +376,7 @@ const searchGoogleNews = async (input_claim) => {
             date: search_result.pubDate,
             publisher: {
                 name: search_result.source['#text'],
-                url: search_result.source['@url']
+                site: search_result.source['@url']
             },
             description: search_result.description.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '').split('&nbsp;')[0]
         }
