@@ -51,7 +51,7 @@ module.exports.sentenceClaimDetection = async (sentence, context, openai_api_key
   try {
     openai = new OpenAI({ apiKey: openai_api_key });
   } catch (error) {
-    console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+    console.error(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
     return [];
   }
 
@@ -67,7 +67,7 @@ module.exports.sentenceClaimDetection = async (sentence, context, openai_api_key
       response_format: zodResponseFormat(claimsObject, "claims"),
     });
   } catch (error) {
-    console.log(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
+    console.error(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
     return [];
   }
 
@@ -110,7 +110,7 @@ module.exports.transcriptClaimDetection = async (transcript, openai_api_key) => 
   try {
     openai = new OpenAI({ apiKey: openai_api_key });
   } catch (error) {
-    console.log( `<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+    console.error( `<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
     return [];
   }
 
@@ -126,7 +126,7 @@ module.exports.transcriptClaimDetection = async (transcript, openai_api_key) => 
       response_format: zodResponseFormat(claimsObject, "claims"),
     });
   } catch (error) {
-    console.log(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
+    console.error(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
     return [];
   }
 

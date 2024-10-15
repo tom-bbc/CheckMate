@@ -47,7 +47,6 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
     // Parameters and variables
     const generate_similarity_scores = true;
     const article_similarity_threshold = 40;
-    console.log(`\nDetected claim: "${claim_text}".`);
 
     // NewsCatcher API: send search query to find contextual article URLs and their contents
     let contextual_articles = await searchNewsCatcher(claim_text, newscatcher_api_key);
@@ -58,7 +57,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
     try {
         openai = new OpenAI({ apiKey: openai_api_key });
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
         return [];
     }
 
@@ -121,7 +120,6 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
 
             // Constrict output to only return relevant articles
             fact_checked_claims.push(fact_check_result);
-            console.log(`\n * Fact-check source: '${article.publisher}' - Claim rating: '${fact_check.summary}' - Similarity score: ${fact_check_result.claimSimilarity}`);
         }
     }
 
@@ -174,7 +172,6 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                     const fact_check = await reviewClaimAgainstArticle(claim_text, article_contents.text, openai);
                     matched_claim_speaker = fact_check.speaker;
                     textual_rating = fact_check.summary;
-                    console.log(`Article reviewed for fact-check => speaker: ${textual_rating}, rating ${matched_claim_speaker}`);
                     // review_article_extract = fact_check.article_section.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '');
                 }
             }
@@ -199,8 +196,6 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
             if (textual_rating !== 'None' || fact_check_result.claimSimilarity === 'None' || fact_check_result.claimSimilarity > article_similarity_threshold) {
                 fact_checked_claims.push(fact_check_result);
             }
-
-            console.log(`\n * Fact-check source: '${article.publisher.name}' - Claim rating: '${textual_rating !== "None" ? textual_rating : article.title}' - Similarity score: ${fact_check_result.claimSimilarity}`);
         }
     }
 
@@ -394,7 +389,9 @@ const decodeGoogleNewsURL = async (input_url) => {
     if (url.hostname === 'news.google.com' && path.length > 1 && ['articles', 'read'].includes(path[path.length - 2])) {
         base64Str = path[path.length - 1];
     } else {
-        console.log("Error in getting base64 string from the the URL");
+        console.error(
+            `<!> ERROR. Decoding article URL from Google News failed. <!>`
+        );
         return {
             status: false
         };
@@ -519,7 +516,7 @@ const getArticleContents = async (article_url) => {
     try {
         response = await axios.get(article_url);
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot get article at URL "${article_url}". <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot get article at URL "${article_url}". <!>`);
         return {
             status: false
         };
@@ -537,7 +534,7 @@ const getArticleContents = async (article_url) => {
     try {
         article_contents = extractor(response.data);
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot extract article at URL "${article.config.url}". <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot extract article at URL "${article.config.url}". <!>`);
         return {
             status: false
         };
@@ -597,7 +594,7 @@ const reviewClaimAgainstArticle = async (claim_text, article_text, openai_connec
                 response_format: zodResponseFormat(claimReviewObject, "output"),
             });
         } catch (error) {
-            console.log(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
+            console.error(`<!> ERROR: "${error.message}". Cannot get response from OpenAI. <!>`);
             return claim_review;
         }
 

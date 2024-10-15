@@ -17,7 +17,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     try {
         openai = new OpenAI({ apiKey: openai_api_key });
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
         return [];
     }
 
@@ -38,7 +38,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
         aws_table_data = await dynamoScan(queryParams);
         aws_table_data = aws_table_data.Items
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot connect to fact-check database. <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot connect to fact-check database. <!>`);
         return [];
     }
 
@@ -51,15 +51,13 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
 
         if (!regenerate_embeddings && row.embedding && row.embedding.S !== '') {
             // Get embedding from database for this claim
-            // console.log("Found claim with embedding:", row.claimID.S);
             embedding = JSON.parse(row.embedding.S);
         } else {
             // Generate new embedding
-            // console.log("Generating embedding for claim:", row.claimID.S);
             try {
                 embedding = await getEmbedding(row.claim.S, openai);
             } catch (error) {
-                console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
+                console.error(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
                 return [];
             }
 
@@ -82,7 +80,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
             try {
                 await dynamoUpdate(queryParams);
             } catch (error) {
-                console.log(`<!> ERROR: "${error.message}". Cannot update fact-check database. <!>`);
+                console.error(`<!> ERROR: "${error.message}". Cannot update fact-check database. <!>`);
                 return [];
             }
             console.log("Update table item with new embedding vector: ", row);
@@ -95,7 +93,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     try {
         input_embedding = await getEmbedding(input_claim, openai);
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot generate embeddings. <!>`);
         return [];
     }
 
@@ -107,7 +105,6 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     const max_similarity = Math.max(...similarity_scores);
 
     if (max_similarity < match_threshold) {
-        console.log("No claim found in AWS fact-check database.");
         return [];
     }
 
@@ -129,7 +126,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
     try {
         matched_claim_data = await dynamoQuery(queryParams);
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot connect to fact-check database. <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot connect to fact-check database. <!>`);
         return [];
     }
     matched_claim_data = matched_claim_data.Items[0];
@@ -156,8 +153,6 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
             languageCode: matched_claim_data.languageCode?.S
         }]
     }];
-
-    console.log(fact_check_results[0]);
 
     return fact_check_results;
 }

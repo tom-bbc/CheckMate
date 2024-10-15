@@ -41,7 +41,7 @@ const getTextSimilarity = async (input_text_1, input_text_2, openai_api_key) => 
     try {
         openai = new OpenAI({ apiKey: openai_api_key });
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
         return 0;
     }
 
@@ -63,7 +63,7 @@ const getClaimSimilarities = async (input_claim, claim_array, openai_api_key) =>
     try {
         openai = new OpenAI({ apiKey: openai_api_key });
     } catch (error) {
-        console.log(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
+        console.error(`<!> ERROR: "${error.message}". Cannot set up OpenAI connection. <!>`);
         return [];
     }
 
