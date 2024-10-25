@@ -93,6 +93,9 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
             const publisher_url_href = article_url.origin;
             const publisher_name = article.publisher ?? article_url.hostname.replace('www.', '');
 
+            let publish_date = new Date(article.date);
+            publish_date = publish_date.toDateString();
+
             // const relevant_article_section = fact_check.article_section.replace(/<[^>]*>/g, '').replace(/[^\x00-\x7F]/g, '');
             // reviewArticleExtract: relevant_article_section
 
@@ -101,7 +104,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                 matchedClaim: article.title,
                 claimSimilarity: "None",
                 matchedClaimSpeaker: fact_check.speaker,
-                publishingDate: article.date,
+                publishingDate: publish_date,
                 claimReview: [{
                     publisher: {
                         name: publisher_name,
@@ -177,6 +180,9 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                 }
             }
 
+            let publish_date = new Date(article.date);
+            publish_date = publish_date.toDateString();
+
             // Format fact-check object
             // reviewArticleExtract: review_article_extract
             let fact_check_result = {
@@ -184,7 +190,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                 matchedClaim: article.title,
                 claimSimilarity: article.similarity ?? "None",
                 matchedClaimSpeaker: matched_claim_speaker,
-                publishingDate: article.date,
+                publishingDate: publish_date,
                 claimReview: [{
                     publisher: article.publisher,
                     url: decoded_article_source.url ?? article.url,
