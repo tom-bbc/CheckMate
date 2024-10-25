@@ -142,6 +142,7 @@ module.exports.factCheckDatabase = async (input_claim, openai_api_key) => {
         matchedClaim: matched_claim_data.claim?.S,
         claimSimilarity: Number((100 * max_similarity).toFixed(2)),
         matchedClaimSpeaker: matched_claim_data.speaker?.S,
+        publishingDate: matched_claim_data.publishingDate?.S ?? "None",
         claimReview: [{
             publisher: {
                 name: publisher_name,

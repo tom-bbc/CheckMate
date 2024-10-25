@@ -18,7 +18,7 @@ const main = async () => {
     };
 
     // Input transcript (from AssemblyAI)
-    const transcript_source = "trump_taxes.txt";
+    const transcript_source = "nhs_is_broken.txt";
     const default_transcript = fs.readFileSync(`test-data/${transcript_source}`).toString();
 
     // Choose input type ["transcript" | "sentences"]

@@ -91,6 +91,7 @@ module.exports.googleFactCheck = async (claim_text, google_fact_check_api_key, o
             matchedClaim: result.text,
             claimSimilarity: "None",
             matchedClaimSpeaker: result.claimant,
+            publishingDate: "None",
             claimReview: result.claimReview
         };
 

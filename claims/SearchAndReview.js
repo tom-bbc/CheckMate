@@ -101,6 +101,7 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                 matchedClaim: article.title,
                 claimSimilarity: "None",
                 matchedClaimSpeaker: fact_check.speaker,
+                publishingDate: article.date,
                 claimReview: [{
                     publisher: {
                         name: publisher_name,
@@ -183,12 +184,13 @@ module.exports.searchAndReview = async (claim_text, google_api_key, google_searc
                 matchedClaim: article.title,
                 claimSimilarity: article.similarity ?? "None",
                 matchedClaimSpeaker: matched_claim_speaker,
+                publishingDate: article.date,
                 claimReview: [{
                     publisher: article.publisher,
                     url: decoded_article_source.url ?? article.url,
                     title: article.title,
                     textualRating: textual_rating,
-                    languageCode: "en"
+                    languageCode: "en",
                 }]
             }
 
